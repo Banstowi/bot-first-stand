@@ -58,6 +58,18 @@ async function refreshCalendar(client) {
     const upcomingMatches = await getUpcomingMatchesInDays(3);
     const upcomingIds = new Set(upcomingMatches.map((m) => String(m.id)));
     const existingIds = state.getAllCalendarMessageIds();
+    const trackedMsgIds = new Set(Object.values(existingIds));
+
+    // Delete any messages in the channel that we don't track (e.g. old untracked placeholders)
+    const recentMsgs = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+    if (recentMsgs) {
+      for (const [, msg] of recentMsgs) {
+        if (msg.author.id === client.user.id && !trackedMsgIds.has(msg.id)) {
+          await msg.delete().catch(() => {});
+          console.log(`[Calendar] Message non tracké supprimé: ${msg.id}`);
+        }
+      }
+    }
 
     // Remove messages for matches no longer upcoming (passed or status changed)
     for (const [matchId, msgId] of Object.entries(existingIds)) {

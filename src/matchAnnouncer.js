@@ -19,7 +19,7 @@ function buildMatchEmbed(match, imageFilename) {
         name: '📅 Date',
         value: date.toLocaleDateString('fr-FR', {
           weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-          hour: '2-digit', minute: '2-digit',
+          hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
         }),
         inline: true,
       }

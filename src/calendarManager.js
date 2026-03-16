@@ -41,7 +41,11 @@ async function buildMatchMessage(match) {
 }
 
 async function refreshCalendar(client) {
-  const channelId = process.env.CALENDAR_CHANNEL_ID;
+  const channelId = state.getCalendarChannelId();
+  if (!channelId) {
+    console.warn('[Calendar] Canal calendrier non configuré. Utilisez /setup calendrier #canal');
+    return;
+  }
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) {
     console.error(`[Calendar] Canal calendrier introuvable: ${channelId}`);

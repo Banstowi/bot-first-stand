@@ -4,8 +4,10 @@ const path = require('path');
 const STATE_FILE = path.join(__dirname, '..', 'data', 'state.json');
 
 const DEFAULT_STATE = {
-  knownMatchIds: [],       // IDs already detected (to avoid re-announcing)
-  calendarMessageIds: {},  // { matchId: discordMessageId } for calendar channel
+  knownMatchIds: [],        // IDs already detected (to avoid re-announcing)
+  calendarMessageIds: {},   // { matchId: discordMessageId } for calendar channel
+  announcementChannelId: null,
+  calendarChannelId: null,
 };
 
 function load() {
@@ -60,6 +62,26 @@ function getAllCalendarMessageIds() {
   return state.calendarMessageIds;
 }
 
+function getAnnouncementChannelId() {
+  return load().announcementChannelId || null;
+}
+
+function setAnnouncementChannelId(id) {
+  const s = load();
+  s.announcementChannelId = id;
+  save(s);
+}
+
+function getCalendarChannelId() {
+  return load().calendarChannelId || null;
+}
+
+function setCalendarChannelId(id) {
+  const s = load();
+  s.calendarChannelId = id;
+  save(s);
+}
+
 module.exports = {
   isKnown,
   markKnown,
@@ -67,4 +89,8 @@ module.exports = {
   setCalendarMessageId,
   removeCalendarMessageId,
   getAllCalendarMessageIds,
+  getAnnouncementChannelId,
+  setAnnouncementChannelId,
+  getCalendarChannelId,
+  setCalendarChannelId,
 };

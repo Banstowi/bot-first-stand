@@ -35,7 +35,11 @@ function buildMatchEmbed(match, imageFilename) {
 }
 
 async function sendMatchAnnouncement(client, match) {
-  const channelId = process.env.ANNOUNCEMENT_CHANNEL_ID;
+  const channelId = state.getAnnouncementChannelId();
+  if (!channelId) {
+    console.warn('[Announcer] Canal d\'annonce non configuré. Utilisez /setup annonce #canal');
+    return;
+  }
   const channel = await client.channels.fetch(channelId).catch(() => null);
   if (!channel) {
     console.error(`[Announcer] Canal d'annonce introuvable: ${channelId}`);

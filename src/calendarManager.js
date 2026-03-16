@@ -26,7 +26,6 @@ async function buildMatchMessage(match) {
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        timeZone: 'Europe/Paris',
       }),
       inline: true,
     })

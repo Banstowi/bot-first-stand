@@ -64,7 +64,7 @@ function truncate(str, max) {
 function formatDate(date) {
   return new Date(date).toLocaleDateString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
+    hour: '2-digit', minute: '2-digit',
   });
 }
 

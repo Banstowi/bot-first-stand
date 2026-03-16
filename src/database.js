@@ -8,7 +8,7 @@ const pool = mysql.createPool({
   password: process.env.DB_PASS,
   waitForConnections: true,
   connectionLimit: 10,
-  timezone: '+00:00',
+  timezone: '+01:00',
 });
 
 async function testConnection() {

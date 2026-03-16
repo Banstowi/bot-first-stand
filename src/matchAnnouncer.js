@@ -6,6 +6,34 @@ const state = require('./state');
 // Map of matchId -> setTimeout handle (to avoid duplicates)
 const scheduledAnnouncements = new Map();
 
+function scheduleAnnouncementDeletion(client, messageId, channelId, deleteAt) {
+  const delay = Math.max(0, deleteAt - Date.now());
+  setTimeout(async () => {
+    try {
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel) {
+        const msg = await channel.messages.fetch(messageId).catch(() => null);
+        if (msg) {
+          await msg.delete();
+          console.log(`[Announcer] Message d'annonce ${messageId} supprimé (3h écoulées)`);
+        }
+      }
+    } catch (err) {
+      console.error(`[Announcer] Impossible de supprimer le message ${messageId}:`, err);
+    } finally {
+      state.removePendingAnnouncementDeletion(messageId);
+    }
+  }, delay);
+}
+
+function rescheduleAnnouncementDeletions(client) {
+  const pending = state.getPendingAnnouncementDeletions();
+  for (const { messageId, channelId, deleteAt } of pending) {
+    scheduleAnnouncementDeletion(client, messageId, channelId, deleteAt);
+    console.log(`[Announcer] Suppression re-planifiée pour message ${messageId} dans ${Math.round(Math.max(0, deleteAt - Date.now()) / 60000)} min`);
+  }
+}
+
 function buildMatchEmbed(match, imageFilename) {
   const { EmbedBuilder } = require('discord.js');
   const date = new Date(match.match_date);
@@ -52,12 +80,19 @@ async function sendMatchAnnouncement(client, match) {
     const attachment = new AttachmentBuilder(cardBuffer, { name: filename });
     const embed = buildMatchEmbed(match, filename);
 
-    await channel.send({
+    const sent = await channel.send({
       content: `@everyone 🏆 **Nouveau match à venir !**`,
       embeds: [embed],
       files: [attachment],
     });
+    // Mark as known only after successful send to survive bot restarts
+    state.markKnown(match.id);
     console.log(`[Announcer] Match ${match.id} annoncé dans #${channel.name}`);
+
+    // Schedule deletion 3h after sending
+    const deleteAt = Date.now() + 3 * 60 * 60 * 1000;
+    state.addPendingAnnouncementDeletion(sent.id, channel.id, deleteAt);
+    scheduleAnnouncementDeletion(client, sent.id, channel.id, deleteAt);
   } catch (err) {
     console.error(`[Announcer] Erreur lors de l'envoi du match ${match.id}:`, err);
   }
@@ -68,37 +103,47 @@ function scheduleMatchAnnouncement(client, match) {
 
   const matchTime = new Date(match.match_date).getTime();
   const announceTime = matchTime - 60 * 60 * 1000; // 1 hour before
-  const now = Date.now();
-  const delay = announceTime - now;
+  const delay = announceTime - Date.now();
 
-  if (delay <= 0) {
-    // Match is within the next hour or already passed — announce immediately if not announced yet
-    console.log(`[Announcer] Match ${match.id} : annonce immédiate (moins d'1h)`);
+  if (delay <= 0) return; // handled directly by checkNewMatches for sequential sending
+
+  console.log(`[Announcer] Match ${match.id} programmé dans ${Math.round(delay / 60000)} min`);
+  const handle = setTimeout(() => {
     sendMatchAnnouncement(client, match);
-  } else {
-    console.log(`[Announcer] Match ${match.id} programmé dans ${Math.round(delay / 60000)} min`);
-    const handle = setTimeout(() => {
-      sendMatchAnnouncement(client, match);
-      scheduledAnnouncements.delete(match.id);
-    }, delay);
-    scheduledAnnouncements.set(match.id, handle);
-  }
+    scheduledAnnouncements.delete(match.id);
+  }, delay);
+  scheduledAnnouncements.set(match.id, handle);
 }
 
 async function checkNewMatches(client) {
   try {
     const matches = await getAllPendingMatches();
 
+    const immediate = [];
     for (const match of matches) {
-      if (!state.isKnown(match.id)) {
+      if (!state.isKnown(match.id) && !scheduledAnnouncements.has(match.id)) {
         console.log(`[Announcer] Nouveau match détecté : #${match.id} ${match.team1_name} vs ${match.team2_name}`);
-        state.markKnown(match.id);
-        scheduleMatchAnnouncement(client, match);
+
+        const matchTime = new Date(match.match_date).getTime();
+        const delay = matchTime - 60 * 60 * 1000 - Date.now();
+
+        if (delay <= 0) {
+          immediate.push(match);
+        } else {
+          scheduleMatchAnnouncement(client, match);
+        }
       }
+    }
+
+    // Send immediate announcements one by one to avoid rate limiting
+    for (const match of immediate) {
+      console.log(`[Announcer] Match ${match.id} : annonce immédiate (moins d'1h)`);
+      await sendMatchAnnouncement(client, match);
+      if (immediate.length > 1) await new Promise((r) => setTimeout(r, 1500));
     }
   } catch (err) {
     console.error('[Announcer] Erreur lors de la vérification des matchs:', err);
   }
 }
 
-module.exports = { checkNewMatches, scheduleMatchAnnouncement, sendMatchAnnouncement, buildMatchEmbed };
+module.exports = { checkNewMatches, scheduleMatchAnnouncement, sendMatchAnnouncement, buildMatchEmbed, rescheduleAnnouncementDeletions };

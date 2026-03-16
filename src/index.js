@@ -3,9 +3,9 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const cron = require('node-cron');
 const { testConnection } = require('./database');
-const { checkNewMatches } = require('./matchAnnouncer');
+const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
 const { refreshCalendar } = require('./calendarManager');
-const { setupCommand, handleSetup } = require('./commands');
+const { setupCommand, refreshCommand, handleSetup, handleRefresh } = require('./commands');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -13,7 +13,7 @@ const client = new Client({
 
 async function registerCommands(clientId) {
   const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-  const commands = [setupCommand.toJSON()];
+  const commands = [setupCommand.toJSON(), refreshCommand.toJSON()];
 
   try {
     await rest.put(Routes.applicationCommands(clientId), { body: commands });
@@ -37,12 +37,15 @@ client.once('ready', async () => {
   // Register slash commands
   await registerCommands(client.user.id);
 
+  // Re-schedule pending announcement deletions from before restart
+  rescheduleAnnouncementDeletions(client);
+
   // Initial run on startup
   await checkNewMatches(client);
   await refreshCalendar(client);
 
-  // Check for new matches every minute
-  cron.schedule('* * * * *', () => {
+  // Check for new matches every 2 minutes
+  cron.schedule('*/2 * * * *', () => {
     checkNewMatches(client);
   });
 
@@ -57,9 +60,14 @@ client.once('ready', async () => {
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName === 'setup') {
-    await handleSetup(interaction, client).catch((err) => {
-      console.error('[Bot] Erreur commande /setup:', err);
+  const handler =
+    interaction.commandName === 'setup' ? handleSetup(interaction, client) :
+    interaction.commandName === 'refresh' ? handleRefresh(interaction, client) :
+    null;
+
+  if (handler) {
+    await handler.catch((err) => {
+      console.error(`[Bot] Erreur commande /${interaction.commandName}:`, err);
       const reply = interaction.deferred
         ? interaction.editReply('❌ Une erreur est survenue.')
         : interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true });

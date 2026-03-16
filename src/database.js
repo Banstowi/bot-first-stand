@@ -8,7 +8,7 @@ const pool = mysql.createPool({
   password: process.env.DB_PASS,
   waitForConnections: true,
   connectionLimit: 10,
-  timezone: '+00:00',
+  timezone: '+01:00',
 });
 
 async function testConnection() {
@@ -28,7 +28,7 @@ async function getUpcomingMatchesInDays(days = 3) {
   const [rows] = await pool.execute(
     `SELECT * FROM discord_matches
      WHERE status = 'PENDING'
-       AND match_date >= NOW()
+       AND match_date >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
        AND match_date <= DATE_ADD(NOW(), INTERVAL ? DAY)
      ORDER BY match_date ASC`,
     [days]

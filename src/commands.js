@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
 const state = require('./state');
 const { refreshCalendar } = require('./calendarManager');
+const { checkNewMatches } = require('./matchAnnouncer');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -11,7 +12,7 @@ const setupCommand = new SlashCommandBuilder()
       .setName('annonce')
       .setDescription("Canal où les nouveaux matchs seront annoncés 1h avant (avec @everyone)")
       .addChannelOption((opt) =>
-        opt.setName('canal').setDescription('Canal d\'annonce').setRequired(true)
+        opt.setName('canal').setDescription("Canal d'annonce").setRequired(true)
       )
   )
   .addSubcommand((sub) =>
@@ -26,6 +27,11 @@ const setupCommand = new SlashCommandBuilder()
     sub.setName('status').setDescription('Afficher la configuration actuelle des canaux')
   );
 
+const refreshCommand = new SlashCommandBuilder()
+  .setName('refresh')
+  .setDescription('Forcer la vérification des nouveaux matchs et la mise à jour du calendrier')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
+
 async function handleSetup(interaction, client) {
   const sub = interaction.options.getSubcommand();
 
@@ -37,7 +43,7 @@ async function handleSetup(interaction, client) {
       .setTitle('⚙️ Configuration des canaux')
       .addFields(
         {
-          name: '📢 Canal d\'annonces',
+          name: "📢 Canal d'annonces",
           value: annId ? `<#${annId}>` : '❌ Non configuré',
           inline: true,
         },
@@ -67,7 +73,6 @@ async function handleSetup(interaction, client) {
   if (sub === 'calendrier') {
     state.setCalendarChannelId(channel.id);
     await interaction.deferReply({ ephemeral: true });
-    // Immediately refresh calendar in the new channel
     await refreshCalendar(client);
     return interaction.editReply({
       embeds: [
@@ -79,4 +84,21 @@ async function handleSetup(interaction, client) {
   }
 }
 
-module.exports = { setupCommand, handleSetup };
+async function handleRefresh(interaction, client) {
+  await interaction.deferReply({ ephemeral: true });
+
+  await Promise.all([
+    checkNewMatches(client),
+    refreshCalendar(client),
+  ]);
+
+  return interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x00cc66)
+        .setDescription('✅ Actualisation forcée effectuée.\nNouveaux matchs vérifiés et calendrier mis à jour.'),
+    ],
+  });
+}
+
+module.exports = { setupCommand, refreshCommand, handleSetup, handleRefresh };

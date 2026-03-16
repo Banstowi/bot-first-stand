@@ -4,10 +4,11 @@ const path = require('path');
 const STATE_FILE = path.join(__dirname, '..', 'data', 'state.json');
 
 const DEFAULT_STATE = {
-  knownMatchIds: [],        // IDs already detected (to avoid re-announcing)
-  calendarMessageIds: {},   // { matchId: discordMessageId } for calendar channel
+  knownMatchIds: [],              // IDs already detected (to avoid re-announcing)
+  calendarMessageIds: {},         // { matchId: discordMessageId } for calendar channel
   announcementChannelId: null,
   calendarChannelId: null,
+  pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
 
 function load() {
@@ -62,6 +63,25 @@ function getAllCalendarMessageIds() {
   return state.calendarMessageIds;
 }
 
+function addPendingAnnouncementDeletion(messageId, channelId, deleteAt) {
+  const s = load();
+  if (!s.pendingAnnouncementDeletions) s.pendingAnnouncementDeletions = [];
+  s.pendingAnnouncementDeletions.push({ messageId, channelId, deleteAt });
+  save(s);
+}
+
+function removePendingAnnouncementDeletion(messageId) {
+  const s = load();
+  s.pendingAnnouncementDeletions = (s.pendingAnnouncementDeletions || []).filter(
+    (d) => d.messageId !== messageId
+  );
+  save(s);
+}
+
+function getPendingAnnouncementDeletions() {
+  return load().pendingAnnouncementDeletions || [];
+}
+
 function getAnnouncementChannelId() {
   return load().announcementChannelId || null;
 }
@@ -93,4 +113,7 @@ module.exports = {
   setAnnouncementChannelId,
   getCalendarChannelId,
   setCalendarChannelId,
+  addPendingAnnouncementDeletion,
+  removePendingAnnouncementDeletion,
+  getPendingAnnouncementDeletions,
 };

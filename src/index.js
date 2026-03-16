@@ -3,7 +3,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const cron = require('node-cron');
 const { testConnection } = require('./database');
-const { checkNewMatches } = require('./matchAnnouncer');
+const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
 const { refreshCalendar } = require('./calendarManager');
 const { setupCommand, handleSetup } = require('./commands');
 
@@ -36,6 +36,9 @@ client.once('ready', async () => {
 
   // Register slash commands
   await registerCommands(client.user.id);
+
+  // Re-schedule pending announcement deletions from before restart
+  rescheduleAnnouncementDeletions(client);
 
   // Initial run on startup
   await checkNewMatches(client);

@@ -6,6 +6,34 @@ const state = require('./state');
 // Map of matchId -> setTimeout handle (to avoid duplicates)
 const scheduledAnnouncements = new Map();
 
+function scheduleAnnouncementDeletion(client, messageId, channelId, deleteAt) {
+  const delay = Math.max(0, deleteAt - Date.now());
+  setTimeout(async () => {
+    try {
+      const channel = await client.channels.fetch(channelId).catch(() => null);
+      if (channel) {
+        const msg = await channel.messages.fetch(messageId).catch(() => null);
+        if (msg) {
+          await msg.delete();
+          console.log(`[Announcer] Message d'annonce ${messageId} supprimé (3h écoulées)`);
+        }
+      }
+    } catch (err) {
+      console.error(`[Announcer] Impossible de supprimer le message ${messageId}:`, err);
+    } finally {
+      state.removePendingAnnouncementDeletion(messageId);
+    }
+  }, delay);
+}
+
+function rescheduleAnnouncementDeletions(client) {
+  const pending = state.getPendingAnnouncementDeletions();
+  for (const { messageId, channelId, deleteAt } of pending) {
+    scheduleAnnouncementDeletion(client, messageId, channelId, deleteAt);
+    console.log(`[Announcer] Suppression re-planifiée pour message ${messageId} dans ${Math.round(Math.max(0, deleteAt - Date.now()) / 60000)} min`);
+  }
+}
+
 function buildMatchEmbed(match, imageFilename) {
   const { EmbedBuilder } = require('discord.js');
   const date = new Date(match.match_date);
@@ -52,12 +80,17 @@ async function sendMatchAnnouncement(client, match) {
     const attachment = new AttachmentBuilder(cardBuffer, { name: filename });
     const embed = buildMatchEmbed(match, filename);
 
-    await channel.send({
+    const sent = await channel.send({
       content: `@everyone 🏆 **Nouveau match à venir !**`,
       embeds: [embed],
       files: [attachment],
     });
     console.log(`[Announcer] Match ${match.id} annoncé dans #${channel.name}`);
+
+    // Schedule deletion 3h after sending
+    const deleteAt = Date.now() + 3 * 60 * 60 * 1000;
+    state.addPendingAnnouncementDeletion(sent.id, channel.id, deleteAt);
+    scheduleAnnouncementDeletion(client, sent.id, channel.id, deleteAt);
   } catch (err) {
     console.error(`[Announcer] Erreur lors de l'envoi du match ${match.id}:`, err);
   }
@@ -101,4 +134,4 @@ async function checkNewMatches(client) {
   }
 }
 
-module.exports = { checkNewMatches, scheduleMatchAnnouncement, sendMatchAnnouncement, buildMatchEmbed };
+module.exports = { checkNewMatches, scheduleMatchAnnouncement, sendMatchAnnouncement, buildMatchEmbed, rescheduleAnnouncementDeletions };

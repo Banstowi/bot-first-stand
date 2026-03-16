@@ -85,6 +85,8 @@ async function sendMatchAnnouncement(client, match) {
       embeds: [embed],
       files: [attachment],
     });
+    // Mark as known only after successful send to survive bot restarts
+    state.markKnown(match.id);
     console.log(`[Announcer] Match ${match.id} annoncé dans #${channel.name}`);
 
     // Schedule deletion 3h after sending
@@ -119,9 +121,8 @@ async function checkNewMatches(client) {
 
     const immediate = [];
     for (const match of matches) {
-      if (!state.isKnown(match.id)) {
+      if (!state.isKnown(match.id) && !scheduledAnnouncements.has(match.id)) {
         console.log(`[Announcer] Nouveau match détecté : #${match.id} ${match.team1_name} vs ${match.team2_name}`);
-        state.markKnown(match.id);
 
         const matchTime = new Date(match.match_date).getTime();
         const delay = matchTime - 60 * 60 * 1000 - Date.now();

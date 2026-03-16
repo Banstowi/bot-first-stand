@@ -61,6 +61,7 @@ async function refreshCalendar(client) {
 
     // Remove messages for matches no longer upcoming (passed or status changed)
     for (const [matchId, msgId] of Object.entries(existingIds)) {
+      if (matchId === '_placeholder') continue;
       if (!upcomingIds.has(matchId)) {
         try {
           const msg = await channel.messages.fetch(msgId).catch(() => null);
@@ -70,6 +71,16 @@ async function refreshCalendar(client) {
         }
         state.removeCalendarMessageId(matchId);
         console.log(`[Calendar] Message supprimé pour match #${matchId}`);
+      }
+    }
+
+    // Delete placeholder "no match" message if matches are now available
+    if (upcomingMatches.length > 0) {
+      const placeholderMsgId = state.getCalendarMessageId('_placeholder');
+      if (placeholderMsgId) {
+        const placeholderMsg = await channel.messages.fetch(placeholderMsgId).catch(() => null);
+        if (placeholderMsg) await placeholderMsg.delete().catch(() => {});
+        state.removeCalendarMessageId('_placeholder');
       }
     }
 
@@ -97,19 +108,17 @@ async function refreshCalendar(client) {
       }
     }
 
-    // If no upcoming matches, post a placeholder if channel is empty
-    if (upcomingMatches.length === 0) {
-      const msgs = await channel.messages.fetch({ limit: 5 }).catch(() => null);
-      if (msgs && msgs.size === 0) {
-        await channel.send({
-          embeds: [
-            new EmbedBuilder()
-              .setColor(0x333355)
-              .setTitle('📅 Aucun match prévu dans les 3 prochains jours')
-              .setDescription('Revenez bientôt pour voir les prochaines rencontres !'),
-          ],
-        });
-      }
+    // If no upcoming matches, post a placeholder (once, tracked in state)
+    if (upcomingMatches.length === 0 && !state.getCalendarMessageId('_placeholder')) {
+      const sent = await channel.send({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0x333355)
+            .setTitle('📅 Aucun match prévu dans les 3 prochains jours')
+            .setDescription('Revenez bientôt pour voir les prochaines rencontres !'),
+        ],
+      });
+      state.setCalendarMessageId('_placeholder', sent.id);
     }
   } catch (err) {
     console.error('[Calendar] Erreur lors de la mise à jour du calendrier:', err);

@@ -101,33 +101,44 @@ function scheduleMatchAnnouncement(client, match) {
 
   const matchTime = new Date(match.match_date).getTime();
   const announceTime = matchTime - 60 * 60 * 1000; // 1 hour before
-  const now = Date.now();
-  const delay = announceTime - now;
+  const delay = announceTime - Date.now();
 
-  if (delay <= 0) {
-    // Match is within the next hour or already passed — announce immediately if not announced yet
-    console.log(`[Announcer] Match ${match.id} : annonce immédiate (moins d'1h)`);
+  if (delay <= 0) return; // handled directly by checkNewMatches for sequential sending
+
+  console.log(`[Announcer] Match ${match.id} programmé dans ${Math.round(delay / 60000)} min`);
+  const handle = setTimeout(() => {
     sendMatchAnnouncement(client, match);
-  } else {
-    console.log(`[Announcer] Match ${match.id} programmé dans ${Math.round(delay / 60000)} min`);
-    const handle = setTimeout(() => {
-      sendMatchAnnouncement(client, match);
-      scheduledAnnouncements.delete(match.id);
-    }, delay);
-    scheduledAnnouncements.set(match.id, handle);
-  }
+    scheduledAnnouncements.delete(match.id);
+  }, delay);
+  scheduledAnnouncements.set(match.id, handle);
 }
 
 async function checkNewMatches(client) {
   try {
     const matches = await getAllPendingMatches();
 
+    const immediate = [];
     for (const match of matches) {
       if (!state.isKnown(match.id)) {
         console.log(`[Announcer] Nouveau match détecté : #${match.id} ${match.team1_name} vs ${match.team2_name}`);
         state.markKnown(match.id);
-        scheduleMatchAnnouncement(client, match);
+
+        const matchTime = new Date(match.match_date).getTime();
+        const delay = matchTime - 60 * 60 * 1000 - Date.now();
+
+        if (delay <= 0) {
+          immediate.push(match);
+        } else {
+          scheduleMatchAnnouncement(client, match);
+        }
       }
+    }
+
+    // Send immediate announcements one by one to avoid rate limiting
+    for (const match of immediate) {
+      console.log(`[Announcer] Match ${match.id} : annonce immédiate (moins d'1h)`);
+      await sendMatchAnnouncement(client, match);
+      if (immediate.length > 1) await new Promise((r) => setTimeout(r, 1500));
     }
   } catch (err) {
     console.error('[Announcer] Erreur lors de la vérification des matchs:', err);

@@ -82,19 +82,16 @@ async function refreshCalendar(client) {
         const { embed, attachment } = await buildMatchMessage(match);
 
         if (existingMsgId) {
-          // Try to edit existing message
+          // Delete old message and repost (Discord doesn't support editing attachments)
           const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
-          if (existingMsg) {
-            await existingMsg.edit({ embeds: [embed], files: [attachment] });
-            console.log(`[Calendar] Message mis à jour pour match #${match.id}`);
-            continue;
-          }
+          if (existingMsg) await existingMsg.delete().catch(() => {});
+          state.removeCalendarMessageId(matchIdStr);
         }
 
         // Post new message
         const sent = await channel.send({ embeds: [embed], files: [attachment] });
         state.setCalendarMessageId(matchIdStr, sent.id);
-        console.log(`[Calendar] Nouveau message posté pour match #${match.id}`);
+        console.log(`[Calendar] Carte postée pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);
       } catch (err) {
         console.error(`[Calendar] Erreur pour le match #${match.id}:`, err);
       }

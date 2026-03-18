@@ -69,6 +69,8 @@ client.on('interactionCreate', async (interaction) => {
       null;
   } else if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_open') {
     handler = createTicket(interaction, interaction.values[0]);
+  } else if (interaction.isButton() && interaction.customId === 'ticket_panel_open') {
+    handler = handleTicket(interaction);
   } else if (interaction.isButton() && interaction.customId === 'ticket_close') {
     handler = closeTicket(interaction);
   }

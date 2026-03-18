@@ -17,6 +17,7 @@ const TICKET_TYPES = {
   roster: { label: 'Valider mon roster', emoji: '📋', color: 0x5555cc },
   questions: { label: "J'ai des questions", emoji: '❓', color: 0xffaa00 },
   suggestions: { label: "J'ai des suggestions", emoji: '💡', color: 0x00cc66 },
+  probleme: { label: "J'ai un problème", emoji: '🚨', color: 0xcc3333 },
 };
 
 function buildTicketSelectMenu() {
@@ -41,6 +42,12 @@ function buildTicketSelectMenu() {
         description: 'Proposer une amélioration ou une idée',
         value: 'suggestions',
         emoji: '💡',
+      },
+      {
+        label: "J'ai un problème",
+        description: 'Signaler un problème au staff',
+        value: 'probleme',
+        emoji: '🚨',
       },
     ]);
 
@@ -150,4 +157,25 @@ async function closeTicket(interaction) {
   }, 5000);
 }
 
-module.exports = { handleTicketOpen, createTicket, closeTicket };
+async function sendTicketPanel(channel) {
+  const logo = new AttachmentBuilder(LOGO_PATH, { name: 'logo.png' });
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5555cc)
+    .setDescription(
+      "Ici est l'outil de création de ticket, tu souhaites inscrire une équipe, poser une question sur le tournoi ou faire remonter un problème, ouvre un ticket !"
+    )
+    .setThumbnail('attachment://logo.png');
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('ticket_panel_open')
+      .setLabel('Ouvrir un ticket')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🎫')
+  );
+
+  await channel.send({ embeds: [embed], files: [logo], components: [row] });
+}
+
+module.exports = { handleTicketOpen, createTicket, closeTicket, sendTicketPanel };

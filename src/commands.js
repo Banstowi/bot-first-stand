@@ -2,7 +2,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType } = 
 const state = require('./state');
 const { refreshCalendar } = require('./calendarManager');
 const { checkNewMatches } = require('./matchAnnouncer');
-const { handleTicketOpen } = require('./ticketManager');
+const { handleTicketOpen, sendTicketPanel } = require('./ticketManager');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -36,6 +36,18 @@ const setupCommand = new SlashCommandBuilder()
           .setName('categorie')
           .setDescription('Catégorie pour les tickets')
           .addChannelTypes(ChannelType.GuildCategory)
+          .setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('panel')
+      .setDescription('Envoyer le message de création de ticket dans un canal')
+      .addChannelOption((opt) =>
+        opt
+          .setName('canal')
+          .setDescription('Canal où poster le panel de tickets')
+          .addChannelTypes(ChannelType.GuildText)
           .setRequired(true)
       )
   );
@@ -116,6 +128,19 @@ async function handleSetup(interaction, client) {
           .setDescription(`✅ Catégorie tickets configurée sur **${category.name}**\nLes tickets créés par \`/ticket\` apparaîtront dans cette catégorie.`),
       ],
       ephemeral: true,
+    });
+  }
+
+  if (sub === 'panel') {
+    const canal = interaction.options.getChannel('canal');
+    await interaction.deferReply({ ephemeral: true });
+    await sendTicketPanel(canal);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Panel de tickets envoyé dans <#${canal.id}>`),
+      ],
     });
   }
 }

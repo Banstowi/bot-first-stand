@@ -8,6 +8,7 @@ const DEFAULT_STATE = {
   calendarMessageIds: {},         // { matchId: discordMessageId } for calendar channel
   announcementChannelId: null,
   calendarChannelId: null,
+  ticketCategoryId: null,
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
 
@@ -102,6 +103,16 @@ function setCalendarChannelId(id) {
   save(s);
 }
 
+function getTicketCategoryId() {
+  return load().ticketCategoryId || null;
+}
+
+function setTicketCategoryId(id) {
+  const s = load();
+  s.ticketCategoryId = id;
+  save(s);
+}
+
 module.exports = {
   isKnown,
   markKnown,
@@ -116,4 +127,6 @@ module.exports = {
   addPendingAnnouncementDeletion,
   removePendingAnnouncementDeletion,
   getPendingAnnouncementDeletions,
+  getTicketCategoryId,
+  setTicketCategoryId,
 };

@@ -1,7 +1,8 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder, ChannelType } = require('discord.js');
 const state = require('./state');
 const { refreshCalendar } = require('./calendarManager');
 const { checkNewMatches } = require('./matchAnnouncer');
+const { handleTicketOpen } = require('./ticketManager');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -25,7 +26,23 @@ const setupCommand = new SlashCommandBuilder()
   )
   .addSubcommand((sub) =>
     sub.setName('status').setDescription('Afficher la configuration actuelle des canaux')
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('ticket')
+      .setDescription('Catégorie Discord où seront créés les tickets')
+      .addChannelOption((opt) =>
+        opt
+          .setName('categorie')
+          .setDescription('Catégorie pour les tickets')
+          .addChannelTypes(ChannelType.GuildCategory)
+          .setRequired(true)
+      )
   );
+
+const ticketCommand = new SlashCommandBuilder()
+  .setName('ticket')
+  .setDescription('Ouvrir un ticket avec le staff');
 
 const refreshCommand = new SlashCommandBuilder()
   .setName('refresh')
@@ -38,6 +55,7 @@ async function handleSetup(interaction, client) {
   if (sub === 'status') {
     const annId = state.getAnnouncementChannelId();
     const calId = state.getCalendarChannelId();
+    const ticketCatId = state.getTicketCategoryId();
     const embed = new EmbedBuilder()
       .setColor(0x5555cc)
       .setTitle('⚙️ Configuration des canaux')
@@ -50,6 +68,11 @@ async function handleSetup(interaction, client) {
         {
           name: '📅 Canal calendrier',
           value: calId ? `<#${calId}>` : '❌ Non configuré',
+          inline: true,
+        },
+        {
+          name: '🎫 Catégorie tickets',
+          value: ticketCatId ? `<#${ticketCatId}>` : '❌ Non configuré',
           inline: true,
         }
       );
@@ -82,6 +105,23 @@ async function handleSetup(interaction, client) {
       ],
     });
   }
+
+  if (sub === 'ticket') {
+    const category = interaction.options.getChannel('categorie');
+    state.setTicketCategoryId(category.id);
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Catégorie tickets configurée sur **${category.name}**\nLes tickets créés par \`/ticket\` apparaîtront dans cette catégorie.`),
+      ],
+      ephemeral: true,
+    });
+  }
+}
+
+async function handleTicket(interaction) {
+  return handleTicketOpen(interaction);
 }
 
 async function handleRefresh(interaction, client) {
@@ -101,4 +141,4 @@ async function handleRefresh(interaction, client) {
   });
 }
 
-module.exports = { setupCommand, refreshCommand, handleSetup, handleRefresh };
+module.exports = { setupCommand, refreshCommand, ticketCommand, handleSetup, handleRefresh, handleTicket };

@@ -5,7 +5,8 @@ const cron = require('node-cron');
 const { testConnection } = require('./database');
 const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
 const { refreshCalendar } = require('./calendarManager');
-const { setupCommand, refreshCommand, handleSetup, handleRefresh } = require('./commands');
+const { setupCommand, refreshCommand, ticketCommand, handleSetup, handleRefresh, handleTicket } = require('./commands');
+const { createTicket, closeTicket } = require('./ticketManager');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -13,7 +14,7 @@ const client = new Client({
 
 async function registerCommands(clientId) {
   const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-  const commands = [setupCommand.toJSON(), refreshCommand.toJSON()];
+  const commands = [setupCommand.toJSON(), refreshCommand.toJSON(), ticketCommand.toJSON()];
 
   try {
     await rest.put(Routes.applicationCommands(clientId), { body: commands });
@@ -58,17 +59,24 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+  let handler = null;
 
-  const handler =
-    interaction.commandName === 'setup' ? handleSetup(interaction, client) :
-    interaction.commandName === 'refresh' ? handleRefresh(interaction, client) :
-    null;
+  if (interaction.isChatInputCommand()) {
+    handler =
+      interaction.commandName === 'setup' ? handleSetup(interaction, client) :
+      interaction.commandName === 'refresh' ? handleRefresh(interaction, client) :
+      interaction.commandName === 'ticket' ? handleTicket(interaction) :
+      null;
+  } else if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_open') {
+    handler = createTicket(interaction, interaction.values[0]);
+  } else if (interaction.isButton() && interaction.customId === 'ticket_close') {
+    handler = closeTicket(interaction);
+  }
 
   if (handler) {
     await handler.catch((err) => {
-      console.error(`[Bot] Erreur commande /${interaction.commandName}:`, err);
-      const reply = interaction.deferred
+      console.error('[Bot] Erreur interaction:', err);
+      const reply = interaction.deferred || interaction.replied
         ? interaction.editReply('❌ Une erreur est survenue.')
         : interaction.reply({ content: '❌ Une erreur est survenue.', ephemeral: true });
       reply.catch(() => {});

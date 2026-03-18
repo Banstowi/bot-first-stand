@@ -4,10 +4,14 @@ const {
   ButtonBuilder,
   ButtonStyle,
   StringSelectMenuBuilder,
+  AttachmentBuilder,
   ChannelType,
   PermissionFlagsBits,
 } = require('discord.js');
+const path = require('path');
 const state = require('./state');
+
+const LOGO_PATH = path.join(__dirname, '..', 'logo.png');
 
 const TICKET_TYPES = {
   roster: { label: 'Valider mon roster', emoji: '📋', color: 0x5555cc },
@@ -105,12 +109,15 @@ async function createTicket(interaction, type) {
     permissionOverwrites,
   });
 
+  const logo = new AttachmentBuilder(LOGO_PATH, { name: 'logo.png' });
+
   const embed = new EmbedBuilder()
     .setColor(ticketType.color)
     .setTitle(`${ticketType.emoji} ${ticketType.label}`)
     .setDescription(
       `Bonjour <@${user.id}> !\n\nVotre ticket a été créé. Un membre du staff vous répondra dès que possible.\n\nPour fermer ce ticket, cliquez sur le bouton ci-dessous.`
     )
+    .setThumbnail('attachment://logo.png')
     .setFooter({ text: `Ticket de ${user.tag}` })
     .setTimestamp();
 
@@ -122,7 +129,7 @@ async function createTicket(interaction, type) {
       .setEmoji('🔒')
   );
 
-  await channel.send({ content: `<@${user.id}>`, embeds: [embed], components: [closeRow] });
+  await channel.send({ content: `<@${user.id}>`, embeds: [embed], files: [logo], components: [closeRow] });
 
   return interaction.update({
     content: `✅ Votre ticket a été créé : <#${channel.id}>`,

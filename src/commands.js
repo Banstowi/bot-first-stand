@@ -71,6 +71,9 @@ const lookScrimCommand = new SlashCommandBuilder()
         { name: 'BO2', value: 'BO2' },
         { name: 'BO3', value: 'BO3' }
       )
+  )
+  .addBooleanOption((opt) =>
+    opt.setName('fearless').setDescription('Mode Fearless ?').setRequired(false)
   );
 
 async function handleSetup(interaction, client) {
@@ -153,6 +156,7 @@ async function handleLookScrim(interaction) {
   const date = interaction.options.getString('date');
   const heure = interaction.options.getString('heure');
   const bo = interaction.options.getString('bo');
+  const fearless = interaction.options.getBoolean('fearless') ?? false;
 
   if (!interaction.member.roles.cache.has(role.id)) {
     return interaction.reply({
@@ -171,7 +175,7 @@ async function handleLookScrim(interaction) {
     .addFields(
       { name: '🏅 Équipe', value: `<@&${role.id}>`, inline: true },
       { name: '📅 Date', value: `${date} - ${heure}`, inline: true },
-      { name: '✳️ Format', value: bo, inline: true }
+      { name: '✳️ Format', value: fearless ? `${bo} Fearless` : bo, inline: true }
     )
     .setFooter({ text: `Posté par ${interaction.user.username}` })
     .setTimestamp();

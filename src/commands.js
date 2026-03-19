@@ -49,6 +49,30 @@ const refreshCommand = new SlashCommandBuilder()
   .setDescription('Forcer la vérification des nouveaux matchs et la mise à jour du calendrier')
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild);
 
+const lookScrimCommand = new SlashCommandBuilder()
+  .setName('look-scrim')
+  .setDescription('Poster une recherche de scrim pour votre équipe')
+  .addRoleOption((opt) =>
+    opt.setName('equipe').setDescription('Votre équipe (rôle)').setRequired(true)
+  )
+  .addStringOption((opt) =>
+    opt.setName('date').setDescription('Date du scrim (ex: 22/03)').setRequired(true)
+  )
+  .addStringOption((opt) =>
+    opt.setName('heure').setDescription("Heure du scrim (ex: 21H)").setRequired(true)
+  )
+  .addStringOption((opt) =>
+    opt
+      .setName('bo')
+      .setDescription('Format du match')
+      .setRequired(true)
+      .addChoices(
+        { name: 'BO1', value: 'BO1' },
+        { name: 'BO2', value: 'BO2' },
+        { name: 'BO3', value: 'BO3' }
+      )
+  );
+
 async function handleSetup(interaction, client) {
   const sub = interaction.options.getSubcommand();
 
@@ -124,6 +148,37 @@ async function handleTicket(interaction) {
   return handleTicketOpen(interaction);
 }
 
+async function handleLookScrim(interaction) {
+  const role = interaction.options.getRole('equipe');
+  const date = interaction.options.getString('date');
+  const heure = interaction.options.getString('heure');
+  const bo = interaction.options.getString('bo');
+
+  if (!interaction.member.roles.cache.has(role.id)) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setDescription(`❌ Vous n'avez pas le rôle **${role.name}** et ne pouvez pas poster une recherche de scrim pour cette équipe.`),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x2b2d31)
+    .setTitle('⚔️ Recherche scrim')
+    .addFields(
+      { name: '🏅 Équipe', value: `<@&${role.id}>`, inline: true },
+      { name: '📅 Date', value: `${date} - ${heure}`, inline: true },
+      { name: '✳️ Format', value: bo, inline: true }
+    )
+    .setFooter({ text: `Posté par ${interaction.user.username}` })
+    .setTimestamp();
+
+  return interaction.reply({ embeds: [embed] });
+}
+
 async function handleRefresh(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -141,4 +196,4 @@ async function handleRefresh(interaction, client) {
   });
 }
 
-module.exports = { setupCommand, refreshCommand, ticketCommand, handleSetup, handleRefresh, handleTicket };
+module.exports = { setupCommand, refreshCommand, ticketCommand, lookScrimCommand, handleSetup, handleRefresh, handleTicket, handleLookScrim };

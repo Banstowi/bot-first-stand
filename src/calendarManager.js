@@ -1,5 +1,5 @@
 const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
-const { getUpcomingMatchesInDays, getMatchesByTeamId } = require('./database');
+const { getUpcomingMatches, getMatchesByTeamId } = require('./database');
 const { generateMatchCard } = require('./cardGenerator');
 const state = require('./state');
 
@@ -45,6 +45,27 @@ async function buildMatchMessage(match) {
   const attachment = new AttachmentBuilder(cardBuffer, { name: filename });
   const embed = buildMatchEmbed(match).setImage(`attachment://${filename}`);
   return { embed, attachment };
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * From a sorted list of matches, keeps only the first `n` per team.
+ * A match counts +1 for each of its two teams.
+ * A match is kept if either team still has fewer than `n` matches included.
+ */
+function filterTopNPerTeam(matches, n) {
+  const teamCount = new Map();
+  return matches.filter((match) => {
+    const c1 = teamCount.get(match.team1_name) || 0;
+    const c2 = teamCount.get(match.team2_name) || 0;
+    if (c1 < n || c2 < n) {
+      teamCount.set(match.team1_name, c1 + 1);
+      teamCount.set(match.team2_name, c2 + 1);
+      return true;
+    }
+    return false;
+  });
 }
 
 // ─── Shared channel sync ──────────────────────────────────────────────────────
@@ -166,7 +187,8 @@ async function refreshCalendar(client) {
 
   console.log('[Calendar] Mise à jour du calendrier...');
   try {
-    const matches = await getUpcomingMatchesInDays(3);
+    const allMatches = await getUpcomingMatches();
+    const matches = filterTopNPerTeam(allMatches, 2);
     await syncMatchesToChannel(channel, matches, {
       getMsg:    (id) => state.getCalendarMessageId(id),
       setMsg:    (id, msgId) => state.setCalendarMessageId(id, msgId),

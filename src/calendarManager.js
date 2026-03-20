@@ -51,19 +51,24 @@ async function buildMatchMessage(match) {
 
 /**
  * Syncs a list of matches to a Discord channel.
- * Edits existing messages in place (keeps image), posts new ones, deletes stale ones.
  *
- * State callbacks:
- *   getMsg(matchId)           → discordMessageId | null
- *   setMsg(matchId, msgId)
- *   removeMsg(matchId)
- *   getAllMsgs()              → { matchId: discordMessageId }
+ * Options:
+ *   imageOnly {boolean} — send only the card image (no embed text). Default: false.
+ *   limit     {number}  — max matches to display. Default: unlimited.
+ *
+ * In embed mode  : edits the embed in place (keeps image), reposts only if missing.
+ * In imageOnly   : keeps existing image messages as-is; replaces any old embed-style
+ *                  message with an image-only one; only reposts when explicitly cleared.
  */
-async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMsg, getAllMsgs }, label) {
-  const currentIds = new Set(matches.map((m) => String(m.id)));
+async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMsg, getAllMsgs }, label, options = {}) {
+  const { imageOnly = false, limit = null } = options;
+
+  // Apply limit
+  const displayMatches = limit ? matches.slice(0, limit) : matches;
+  const currentIds = new Set(displayMatches.map((m) => String(m.id)));
   const existingIds = getAllMsgs();
 
-  // Delete messages for matches no longer in the list
+  // Delete messages for matches no longer displayed (out of scope or beyond limit)
   for (const [matchId, msgId] of Object.entries(existingIds)) {
     if (matchId === '_placeholder') continue;
     if (!currentIds.has(matchId)) {
@@ -75,7 +80,7 @@ async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMs
   }
 
   // Delete placeholder if matches are now available
-  if (matches.length > 0) {
+  if (displayMatches.length > 0) {
     const placeholderMsgId = getMsg('_placeholder');
     if (placeholderMsgId) {
       const placeholderMsg = await channel.messages.fetch(placeholderMsgId).catch(() => null);
@@ -85,7 +90,7 @@ async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMs
   }
 
   // Post or update each match
-  for (const match of matches) {
+  for (const match of displayMatches) {
     const matchIdStr = String(match.id);
     const existingMsgId = getMsg(matchIdStr);
 
@@ -93,19 +98,38 @@ async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMs
       if (existingMsgId) {
         const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
         if (existingMsg) {
-          // Edit embed in place — keeps the existing image attachment
-          const imageUrl = existingMsg.embeds[0]?.image?.url || null;
-          await existingMsg.edit({ embeds: [buildMatchEmbed(match).setImage(imageUrl)] });
-          console.log(`[${label}] Carte mise à jour pour match #${match.id}`);
-          continue;
+          if (imageOnly) {
+            // If the stored message is an old embed-style one, replace it with image-only
+            if (existingMsg.embeds.length > 0) {
+              await existingMsg.delete().catch(() => {});
+              removeMsg(matchIdStr);
+              // Fall through to post the image-only message below
+            } else {
+              continue; // Already image-only and up-to-date, keep it
+            }
+          } else {
+            // Embed mode: edit the embed in place (keeps existing image attachment)
+            const imageUrl = existingMsg.embeds[0]?.image?.url || null;
+            await existingMsg.edit({ embeds: [buildMatchEmbed(match).setImage(imageUrl)] });
+            console.log(`[${label}] Carte mise à jour pour match #${match.id}`);
+            continue;
+          }
+        } else {
+          // Message no longer in Discord — clean up and repost
+          removeMsg(matchIdStr);
         }
-        // Message no longer in Discord — clean up and repost
-        removeMsg(matchIdStr);
       }
 
-      const { embed, attachment } = await buildMatchMessage(match);
-      const sent = await channel.send({ embeds: [embed], files: [attachment] });
-      setMsg(matchIdStr, sent.id);
+      // Post new message
+      if (imageOnly) {
+        const { attachment } = await buildMatchMessage(match);
+        const sent = await channel.send({ files: [attachment] });
+        setMsg(matchIdStr, sent.id);
+      } else {
+        const { embed, attachment } = await buildMatchMessage(match);
+        const sent = await channel.send({ embeds: [embed], files: [attachment] });
+        setMsg(matchIdStr, sent.id);
+      }
       console.log(`[${label}] Carte postée pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);
     } catch (err) {
       console.error(`[${label}] Erreur pour le match #${match.id}:`, err);
@@ -113,7 +137,7 @@ async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMs
   }
 
   // Placeholder when no matches
-  if (matches.length === 0 && !getMsg('_placeholder')) {
+  if (displayMatches.length === 0 && !getMsg('_placeholder')) {
     const sent = await channel.send({
       embeds: [
         new EmbedBuilder()
@@ -171,7 +195,7 @@ async function refreshTeamChannel(client, teamId, channelId) {
       setMsg:    (id, msgId) => state.setTeamMessageId(teamId, id, msgId),
       removeMsg: (id) => state.removeTeamMessageId(teamId, id),
       getAllMsgs: () => state.getAllTeamMessageIds(teamId),
-    }, `TeamChannel#${teamId}`);
+    }, `TeamChannel#${teamId}`, { imageOnly: true, limit: 2 });
   } catch (err) {
     console.error(`[TeamChannel] Erreur pour équipe #${teamId}:`, err);
   }

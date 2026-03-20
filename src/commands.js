@@ -13,7 +13,7 @@ const {
 } = require('./database');
 const { refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
-const { getAllTeams, getUnassignedTeams } = require('./database');
+const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./database');
 const { handleTicketOpen } = require('./ticketManager');
 
 const setupCommand = new SlashCommandBuilder()
@@ -236,11 +236,19 @@ async function handleSetup(interaction, client) {
     state.setTeamChannelId(teamId, channel.id);
     await interaction.deferReply({ ephemeral: true });
     await refreshAllTeamChannels(client);
+
+    // Ping the captain of this team in the team channel
+    const cap = await getCapitaineByTeamId(teamId);
+    const teamLabel = cap ? cap.team_name : `équipe #${teamId}`;
+    if (cap) {
+      await channel.send(`👋 <@${cap.discord_user_id}>, ce canal est maintenant configuré pour les matchs de **${cap.team_name}** !`);
+    }
+
     return interaction.editReply({
       embeds: [
         new EmbedBuilder()
           .setColor(0x00cc66)
-          .setDescription(`✅ Canal équipe \`#${teamId}\` configuré sur <#${channel.id}>\nLes matchs de cette équipe y seront affichés et mis à jour automatiquement.`),
+          .setDescription(`✅ Canal équipe configuré sur <#${channel.id}> pour **${teamLabel}**\nLes matchs de cette équipe y seront affichés et mis à jour automatiquement.`),
       ],
     });
   }

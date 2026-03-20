@@ -50,22 +50,35 @@ async function buildMatchMessage(match) {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * From a sorted list of matches, keeps only the first `n` per team.
- * A match counts +1 for each of its two teams.
- * A match is kept if either team still has fewer than `n` matches included.
+ * From a sorted list of matches, keeps the first `n` per team and reorders
+ * them so that "round 1" matches (each team's first appearance) come before
+ * "round 2" matches (second appearances), minimising consecutive same-team runs.
+ *
+ * slot = max(count_team1, count_team2) at the time of inclusion:
+ *   0 → both teams appear for the first time
+ *   1 → at least one team already had 1 match
+ *   …
+ * Within each slot, original order (date/id) is preserved.
  */
 function filterTopNPerTeam(matches, n) {
   const teamCount = new Map();
-  return matches.filter((match) => {
+  const withSlots = [];
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
     const c1 = teamCount.get(match.team1_name) || 0;
     const c2 = teamCount.get(match.team2_name) || 0;
     if (c1 < n || c2 < n) {
+      withSlots.push({ match, slot: Math.max(c1, c2), index: i });
       teamCount.set(match.team1_name, c1 + 1);
       teamCount.set(match.team2_name, c2 + 1);
-      return true;
     }
-    return false;
-  });
+  }
+
+  // Sort: round first (so every team appears once before any team appears twice),
+  // then original position to keep date/id ordering within each round.
+  withSlots.sort((a, b) => a.slot - b.slot || a.index - b.index);
+  return withSlots.map((x) => x.match);
 }
 
 // ─── Shared channel sync ──────────────────────────────────────────────────────

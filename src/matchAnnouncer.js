@@ -53,6 +53,7 @@ function buildMatchEmbed(match, imageFilename) {
       }
     )
     .setImage(`attachment://${imageFilename}`)
+    .setFooter({ text: `Match #${match.id}` })
     .setTimestamp(date);
 
   if (match.twitch_link) {

@@ -62,6 +62,7 @@ function truncate(str, max) {
 }
 
 function formatDate(date) {
+  if (!date) return '⏳ Date à définir';
   return new Date(date).toLocaleDateString('fr-FR', {
     weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris',
@@ -143,8 +144,8 @@ async function generateMatchCard(match) {
   // Match ID (top-right, discreet)
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#44446a';
-  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#6666aa';
+  ctx.font = '13px sans-serif';
   ctx.fillText(`#${match.id}`, W - 16, HEADER_H / 2);
 
   // ── Team logos ──────────────────────────────────────────────────────────

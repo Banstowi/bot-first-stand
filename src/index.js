@@ -4,7 +4,7 @@ const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const cron = require('node-cron');
 const { testConnection, setupDatabase } = require('./database');
 const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
-const { refreshCalendar } = require('./calendarManager');
+const { refreshCalendar, refreshAllTeamChannels } = require('./calendarManager');
 const {
   setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
   capitaineCommand, setdateCommand,
@@ -57,15 +57,17 @@ client.once('ready', async () => {
   // Initial run on startup
   await checkNewMatches(client);
   await refreshCalendar(client);
+  await refreshAllTeamChannels(client);
 
   // Check for new matches every 2 minutes
   cron.schedule('*/2 * * * *', () => {
     checkNewMatches(client);
   });
 
-  // Refresh calendar channel every 2 minutes
+  // Refresh calendar and team channels every 2 minutes
   cron.schedule('*/2 * * * *', () => {
     refreshCalendar(client);
+    refreshAllTeamChannels(client);
   });
 
   console.log('[Bot] Tâches planifiées actives. Bot prêt !');

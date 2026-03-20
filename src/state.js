@@ -5,7 +5,9 @@ const STATE_FILE = path.join(__dirname, '..', 'data', 'state.json');
 
 const DEFAULT_STATE = {
   knownMatchIds: [],              // IDs already detected (to avoid re-announcing)
-  calendarMessageIds: {},         // { matchId: discordMessageId } for calendar channel
+  calendarMessageIds: {},         // { matchId: discordMessageId } for general calendar
+  teamChannelIds: {},             // { teamId: discordChannelId } for team-specific channels
+  teamMessageIds: {},             // { teamId: { matchId: discordMessageId } }
   announcementChannelId: null,
   calendarChannelId: null,
   ticketCategoryId: null,
@@ -18,7 +20,9 @@ function load() {
     return { ...DEFAULT_STATE };
   }
   try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    const parsed = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
+    // Ensure new keys exist in older state files
+    return { ...DEFAULT_STATE, ...parsed };
   } catch {
     return { ...DEFAULT_STATE };
   }
@@ -29,9 +33,10 @@ function save(state) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 }
 
+// ─── Known matches ────────────────────────────────────────────────────────────
+
 function isKnown(matchId) {
-  const state = load();
-  return state.knownMatchIds.includes(matchId);
+  return load().knownMatchIds.includes(matchId);
 }
 
 function markKnown(matchId) {
@@ -42,9 +47,10 @@ function markKnown(matchId) {
   }
 }
 
+// ─── General calendar message IDs ────────────────────────────────────────────
+
 function getCalendarMessageId(matchId) {
-  const state = load();
-  return state.calendarMessageIds[matchId] || null;
+  return load().calendarMessageIds[matchId] || null;
 }
 
 function setCalendarMessageId(matchId, messageId) {
@@ -60,28 +66,66 @@ function removeCalendarMessageId(matchId) {
 }
 
 function getAllCalendarMessageIds() {
+  return load().calendarMessageIds;
+}
+
+// ─── Team channels ────────────────────────────────────────────────────────────
+
+function getTeamChannelId(teamId) {
+  return load().teamChannelIds[String(teamId)] || null;
+}
+
+function setTeamChannelId(teamId, channelId) {
   const state = load();
-  return state.calendarMessageIds;
+  if (!state.teamChannelIds) state.teamChannelIds = {};
+  if (!state.teamMessageIds) state.teamMessageIds = {};
+  // If channel changes, clear old message ID tracking for this team
+  if (state.teamChannelIds[String(teamId)] !== channelId) {
+    state.teamMessageIds[String(teamId)] = {};
+  }
+  state.teamChannelIds[String(teamId)] = channelId;
+  save(state);
 }
 
-function addPendingAnnouncementDeletion(messageId, channelId, deleteAt) {
-  const s = load();
-  if (!s.pendingAnnouncementDeletions) s.pendingAnnouncementDeletions = [];
-  s.pendingAnnouncementDeletions.push({ messageId, channelId, deleteAt });
-  save(s);
+function removeTeamChannelId(teamId) {
+  const state = load();
+  delete state.teamChannelIds[String(teamId)];
+  delete state.teamMessageIds[String(teamId)];
+  save(state);
 }
 
-function removePendingAnnouncementDeletion(messageId) {
-  const s = load();
-  s.pendingAnnouncementDeletions = (s.pendingAnnouncementDeletions || []).filter(
-    (d) => d.messageId !== messageId
-  );
-  save(s);
+function getAllTeamChannelIds() {
+  return load().teamChannelIds || {};
 }
 
-function getPendingAnnouncementDeletions() {
-  return load().pendingAnnouncementDeletions || [];
+// ─── Team channel message IDs ─────────────────────────────────────────────────
+
+function getTeamMessageId(teamId, matchId) {
+  const state = load();
+  return (state.teamMessageIds[String(teamId)] || {})[String(matchId)] || null;
 }
+
+function setTeamMessageId(teamId, matchId, messageId) {
+  const state = load();
+  if (!state.teamMessageIds) state.teamMessageIds = {};
+  if (!state.teamMessageIds[String(teamId)]) state.teamMessageIds[String(teamId)] = {};
+  state.teamMessageIds[String(teamId)][String(matchId)] = messageId;
+  save(state);
+}
+
+function removeTeamMessageId(teamId, matchId) {
+  const state = load();
+  if (state.teamMessageIds && state.teamMessageIds[String(teamId)]) {
+    delete state.teamMessageIds[String(teamId)][String(matchId)];
+    save(state);
+  }
+}
+
+function getAllTeamMessageIds(teamId) {
+  return (load().teamMessageIds || {})[String(teamId)] || {};
+}
+
+// ─── Channels config ──────────────────────────────────────────────────────────
 
 function getAnnouncementChannelId() {
   return load().announcementChannelId || null;
@@ -113,20 +157,53 @@ function setTicketCategoryId(id) {
   save(s);
 }
 
+// ─── Announcement deletions ───────────────────────────────────────────────────
+
+function addPendingAnnouncementDeletion(messageId, channelId, deleteAt) {
+  const s = load();
+  if (!s.pendingAnnouncementDeletions) s.pendingAnnouncementDeletions = [];
+  s.pendingAnnouncementDeletions.push({ messageId, channelId, deleteAt });
+  save(s);
+}
+
+function removePendingAnnouncementDeletion(messageId) {
+  const s = load();
+  s.pendingAnnouncementDeletions = (s.pendingAnnouncementDeletions || []).filter(
+    (d) => d.messageId !== messageId
+  );
+  save(s);
+}
+
+function getPendingAnnouncementDeletions() {
+  return load().pendingAnnouncementDeletions || [];
+}
+
 module.exports = {
   isKnown,
   markKnown,
+  // General calendar
   getCalendarMessageId,
   setCalendarMessageId,
   removeCalendarMessageId,
   getAllCalendarMessageIds,
+  // Team channels
+  getTeamChannelId,
+  setTeamChannelId,
+  removeTeamChannelId,
+  getAllTeamChannelIds,
+  getTeamMessageId,
+  setTeamMessageId,
+  removeTeamMessageId,
+  getAllTeamMessageIds,
+  // Config
   getAnnouncementChannelId,
   setAnnouncementChannelId,
   getCalendarChannelId,
   setCalendarChannelId,
+  getTicketCategoryId,
+  setTicketCategoryId,
+  // Deletions
   addPendingAnnouncementDeletion,
   removePendingAnnouncementDeletion,
   getPendingAnnouncementDeletions,
-  getTicketCategoryId,
-  setTicketCategoryId,
 };

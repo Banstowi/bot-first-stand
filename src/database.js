@@ -64,8 +64,20 @@ async function getUpcomingMatchesInDays(days = 3) {
            AND match_date <= DATE_ADD(NOW(), INTERVAL ? DAY)
          )
        )
-     ORDER BY (match_date IS NULL) ASC, match_date ASC`,
+     ORDER BY (match_date IS NULL) ASC, id ASC`,
     [days]
+  );
+  return rows;
+}
+
+async function getMatchesByTeamId(teamId) {
+  const [rows] = await pool.execute(
+    `SELECT dm.*
+     FROM discord_matches dm
+     JOIN teams t ON (t.name = dm.team1_name OR t.name = dm.team2_name)
+     WHERE t.id = ? AND dm.status = 'PENDING'
+     ORDER BY (dm.match_date IS NULL) ASC, dm.id ASC`,
+    [teamId]
   );
   return rows;
 }
@@ -147,6 +159,7 @@ module.exports = {
   setupDatabase,
   getAllPendingMatches,
   getUpcomingMatchesInDays,
+  getMatchesByTeamId,
   getMatchById,
   setMatchDate,
   setCapitaine,

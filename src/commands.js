@@ -11,6 +11,7 @@ const {
   setMatchDate,
   getMatchById,
 } = require('./database');
+const { refreshAllTeamChannels } = require('./calendarManager');
 const { handleTicketOpen } = require('./ticketManager');
 
 const setupCommand = new SlashCommandBuilder()
@@ -46,6 +47,17 @@ const setupCommand = new SlashCommandBuilder()
           .setDescription('Catégorie pour les tickets')
           .addChannelTypes(ChannelType.GuildCategory)
           .setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('equipe')
+      .setDescription("Canal dédié aux annonces d'une équipe (ses matchs uniquement)")
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription("Canal de l'équipe").setRequired(true)
+      )
+      .addIntegerOption((opt) =>
+        opt.setName('team_id').setDescription("ID de l'équipe dans la base de données").setRequired(true)
       )
   );
 
@@ -129,24 +141,20 @@ async function handleSetup(interaction, client) {
     const annId = state.getAnnouncementChannelId();
     const calId = state.getCalendarChannelId();
     const ticketCatId = state.getTicketCategoryId();
+    const teamChannels = state.getAllTeamChannelIds();
+    const teamLines = Object.entries(teamChannels).map(
+      ([tid, cid]) => `Équipe \`#${tid}\` → <#${cid}>`
+    );
     const embed = new EmbedBuilder()
       .setColor(0x5555cc)
       .setTitle('⚙️ Configuration des canaux')
       .addFields(
+        { name: "📢 Canal d'annonces", value: annId ? `<#${annId}>` : '❌ Non configuré', inline: true },
+        { name: '📅 Canal calendrier', value: calId ? `<#${calId}>` : '❌ Non configuré', inline: true },
+        { name: '🎫 Catégorie tickets', value: ticketCatId ? `<#${ticketCatId}>` : '❌ Non configuré', inline: true },
         {
-          name: "📢 Canal d'annonces",
-          value: annId ? `<#${annId}>` : '❌ Non configuré',
-          inline: true,
-        },
-        {
-          name: '📅 Canal calendrier',
-          value: calId ? `<#${calId}>` : '❌ Non configuré',
-          inline: true,
-        },
-        {
-          name: '🎫 Catégorie tickets',
-          value: ticketCatId ? `<#${ticketCatId}>` : '❌ Non configuré',
-          inline: true,
+          name: '🏅 Canaux équipes',
+          value: teamLines.length > 0 ? teamLines.join('\n') : '❌ Aucun configuré',
         }
       );
     return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -189,6 +197,21 @@ async function handleSetup(interaction, client) {
           .setDescription(`✅ Catégorie tickets configurée sur **${category.name}**\nLes tickets créés par \`/ticket\` apparaîtront dans cette catégorie.`),
       ],
       ephemeral: true,
+    });
+  }
+
+  if (sub === 'equipe') {
+    const channel = interaction.options.getChannel('canal');
+    const teamId = interaction.options.getInteger('team_id');
+    state.setTeamChannelId(teamId, channel.id);
+    await interaction.deferReply({ ephemeral: true });
+    await refreshAllTeamChannels(client);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Canal équipe \`#${teamId}\` configuré sur <#${channel.id}>\nLes matchs de cette équipe y seront affichés et mis à jour automatiquement.`),
+      ],
     });
   }
 }
@@ -378,8 +401,12 @@ async function handleSetdate(interaction, client) {
 
   // Force repost of the calendar card (new date = new image needed)
   state.removeCalendarMessageId(String(matchId));
+  // Also force repost in all team channels
+  Object.keys(state.getAllTeamChannelIds()).forEach((tid) =>
+    state.removeTeamMessageId(tid, String(matchId))
+  );
 
-  await refreshCalendar(client);
+  await Promise.all([refreshCalendar(client), refreshAllTeamChannels(client)]);
 
   return interaction.editReply({
     embeds: [

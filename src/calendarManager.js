@@ -1,7 +1,9 @@
 const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
-const { getUpcomingMatchesInDays } = require('./database');
+const { getUpcomingMatchesInDays, getMatchesByTeamId } = require('./database');
 const { generateMatchCard } = require('./cardGenerator');
 const state = require('./state');
+
+// ─── Embed builders ───────────────────────────────────────────────────────────
 
 function buildMatchEmbed(match) {
   const date = match.match_date ? new Date(match.match_date) : null;
@@ -32,10 +34,7 @@ function buildMatchEmbed(match) {
     .setFooter({ text: `Match #${match.id}` });
 
   if (date) embed.setTimestamp(date);
-
-  if (match.twitch_link) {
-    embed.addFields({ name: '🎮 Stream', value: match.twitch_link, inline: true });
-  }
+  if (match.twitch_link) embed.addFields({ name: '🎮 Stream', value: match.twitch_link, inline: true });
 
   return embed;
 }
@@ -47,6 +46,87 @@ async function buildMatchMessage(match) {
   const embed = buildMatchEmbed(match).setImage(`attachment://${filename}`);
   return { embed, attachment };
 }
+
+// ─── Shared channel sync ──────────────────────────────────────────────────────
+
+/**
+ * Syncs a list of matches to a Discord channel.
+ * Edits existing messages in place (keeps image), posts new ones, deletes stale ones.
+ *
+ * State callbacks:
+ *   getMsg(matchId)           → discordMessageId | null
+ *   setMsg(matchId, msgId)
+ *   removeMsg(matchId)
+ *   getAllMsgs()              → { matchId: discordMessageId }
+ */
+async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMsg, getAllMsgs }, label) {
+  const currentIds = new Set(matches.map((m) => String(m.id)));
+  const existingIds = getAllMsgs();
+
+  // Delete messages for matches no longer in the list
+  for (const [matchId, msgId] of Object.entries(existingIds)) {
+    if (matchId === '_placeholder') continue;
+    if (!currentIds.has(matchId)) {
+      const msg = await channel.messages.fetch(msgId).catch(() => null);
+      if (msg) await msg.delete().catch(() => {});
+      removeMsg(matchId);
+      console.log(`[${label}] Message supprimé pour match #${matchId}`);
+    }
+  }
+
+  // Delete placeholder if matches are now available
+  if (matches.length > 0) {
+    const placeholderMsgId = getMsg('_placeholder');
+    if (placeholderMsgId) {
+      const placeholderMsg = await channel.messages.fetch(placeholderMsgId).catch(() => null);
+      if (placeholderMsg) await placeholderMsg.delete().catch(() => {});
+      removeMsg('_placeholder');
+    }
+  }
+
+  // Post or update each match
+  for (const match of matches) {
+    const matchIdStr = String(match.id);
+    const existingMsgId = getMsg(matchIdStr);
+
+    try {
+      if (existingMsgId) {
+        const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
+        if (existingMsg) {
+          // Edit embed in place — keeps the existing image attachment
+          const imageUrl = existingMsg.embeds[0]?.image?.url || null;
+          await existingMsg.edit({ embeds: [buildMatchEmbed(match).setImage(imageUrl)] });
+          console.log(`[${label}] Carte mise à jour pour match #${match.id}`);
+          continue;
+        }
+        // Message no longer in Discord — clean up and repost
+        removeMsg(matchIdStr);
+      }
+
+      const { embed, attachment } = await buildMatchMessage(match);
+      const sent = await channel.send({ embeds: [embed], files: [attachment] });
+      setMsg(matchIdStr, sent.id);
+      console.log(`[${label}] Carte postée pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);
+    } catch (err) {
+      console.error(`[${label}] Erreur pour le match #${match.id}:`, err);
+    }
+  }
+
+  // Placeholder when no matches
+  if (matches.length === 0 && !getMsg('_placeholder')) {
+    const sent = await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x333355)
+          .setTitle('📅 Aucun match à venir')
+          .setDescription('Revenez bientôt pour voir les prochaines rencontres !'),
+      ],
+    });
+    setMsg('_placeholder', sent.id);
+  }
+}
+
+// ─── General calendar ─────────────────────────────────────────────────────────
 
 async function refreshCalendar(client) {
   const channelId = state.getCalendarChannelId();
@@ -61,81 +141,47 @@ async function refreshCalendar(client) {
   }
 
   console.log('[Calendar] Mise à jour du calendrier...');
-
   try {
-    // getUpcomingMatchesInDays already sorts: dated matches ASC, then undated
-    const upcomingMatches = await getUpcomingMatchesInDays(3);
-    const upcomingIds = new Set(upcomingMatches.map((m) => String(m.id)));
-    const existingIds = state.getAllCalendarMessageIds();
-
-    // Remove messages for matches no longer in scope
-    for (const [matchId, msgId] of Object.entries(existingIds)) {
-      if (matchId === '_placeholder') continue;
-      if (!upcomingIds.has(matchId)) {
-        try {
-          const msg = await channel.messages.fetch(msgId).catch(() => null);
-          if (msg) await msg.delete();
-        } catch {
-          // Already deleted
-        }
-        state.removeCalendarMessageId(matchId);
-        console.log(`[Calendar] Message supprimé pour match #${matchId}`);
-      }
-    }
-
-    // Delete placeholder if matches are now available
-    if (upcomingMatches.length > 0) {
-      const placeholderMsgId = state.getCalendarMessageId('_placeholder');
-      if (placeholderMsgId) {
-        const placeholderMsg = await channel.messages.fetch(placeholderMsgId).catch(() => null);
-        if (placeholderMsg) await placeholderMsg.delete().catch(() => {});
-        state.removeCalendarMessageId('_placeholder');
-      }
-    }
-
-    // Post or update messages for each match
-    for (const match of upcomingMatches) {
-      const matchIdStr = String(match.id);
-      const existingMsgId = state.getCalendarMessageId(matchIdStr);
-
-      try {
-        if (existingMsgId) {
-          // Edit the embed in place (keeps the existing image attachment)
-          const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
-          if (existingMsg) {
-            await existingMsg.edit({ embeds: [buildMatchEmbed(match).setImage(existingMsg.embeds[0]?.image?.url || null)] });
-            console.log(`[Calendar] Carte mise à jour pour match #${match.id}`);
-            continue;
-          }
-          // Message gone from Discord — remove stale state and repost
-          state.removeCalendarMessageId(matchIdStr);
-        }
-
-        // Post new message with generated card image
-        const { embed, attachment } = await buildMatchMessage(match);
-        const sent = await channel.send({ embeds: [embed], files: [attachment] });
-        state.setCalendarMessageId(matchIdStr, sent.id);
-        console.log(`[Calendar] Carte postée pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);
-      } catch (err) {
-        console.error(`[Calendar] Erreur pour le match #${match.id}:`, err);
-      }
-    }
-
-    // Placeholder when no matches
-    if (upcomingMatches.length === 0 && !state.getCalendarMessageId('_placeholder')) {
-      const sent = await channel.send({
-        embeds: [
-          new EmbedBuilder()
-            .setColor(0x333355)
-            .setTitle('📅 Aucun match prévu dans les 3 prochains jours')
-            .setDescription('Revenez bientôt pour voir les prochaines rencontres !'),
-        ],
-      });
-      state.setCalendarMessageId('_placeholder', sent.id);
-    }
+    const matches = await getUpcomingMatchesInDays(3);
+    await syncMatchesToChannel(channel, matches, {
+      getMsg:    (id) => state.getCalendarMessageId(id),
+      setMsg:    (id, msgId) => state.setCalendarMessageId(id, msgId),
+      removeMsg: (id) => state.removeCalendarMessageId(id),
+      getAllMsgs: () => state.getAllCalendarMessageIds(),
+    }, 'Calendar');
   } catch (err) {
     console.error('[Calendar] Erreur lors de la mise à jour du calendrier:', err);
   }
 }
 
-module.exports = { refreshCalendar };
+// ─── Team channels ────────────────────────────────────────────────────────────
+
+async function refreshTeamChannel(client, teamId, channelId) {
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel) {
+    console.error(`[TeamChannel] Canal introuvable pour équipe #${teamId}: ${channelId}`);
+    return;
+  }
+
+  console.log(`[TeamChannel] Mise à jour du canal équipe #${teamId}...`);
+  try {
+    const matches = await getMatchesByTeamId(teamId);
+    await syncMatchesToChannel(channel, matches, {
+      getMsg:    (id) => state.getTeamMessageId(teamId, id),
+      setMsg:    (id, msgId) => state.setTeamMessageId(teamId, id, msgId),
+      removeMsg: (id) => state.removeTeamMessageId(teamId, id),
+      getAllMsgs: () => state.getAllTeamMessageIds(teamId),
+    }, `TeamChannel#${teamId}`);
+  } catch (err) {
+    console.error(`[TeamChannel] Erreur pour équipe #${teamId}:`, err);
+  }
+}
+
+async function refreshAllTeamChannels(client) {
+  const teamChannels = state.getAllTeamChannelIds();
+  for (const [teamId, channelId] of Object.entries(teamChannels)) {
+    await refreshTeamChannel(client, teamId, channelId);
+  }
+}
+
+module.exports = { refreshCalendar, refreshAllTeamChannels };

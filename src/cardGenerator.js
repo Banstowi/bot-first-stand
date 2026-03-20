@@ -143,8 +143,8 @@ async function generateMatchCard(match) {
   // Match ID (top-right, discreet)
   ctx.textAlign = 'right';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#44446a';
-  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#6666aa';
+  ctx.font = '13px sans-serif';
   ctx.fillText(`#${match.id}`, W - 16, HEADER_H / 2);
 
   // ── Team logos ──────────────────────────────────────────────────────────

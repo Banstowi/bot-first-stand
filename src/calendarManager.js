@@ -31,6 +31,7 @@ async function buildMatchMessage(match) {
       inline: true,
     })
     .setImage(`attachment://${filename}`)
+    .setFooter({ text: `Match #${match.id}` })
     .setTimestamp(date);
 
   if (match.twitch_link) {

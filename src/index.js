@@ -50,8 +50,8 @@ client.once('ready', async () => {
     checkNewMatches(client);
   });
 
-  // Refresh calendar channel every 15 minutes
-  cron.schedule('*/15 * * * *', () => {
+  // Refresh calendar channel every 2 minutes
+  cron.schedule('*/2 * * * *', () => {
     refreshCalendar(client);
   });
 

@@ -79,6 +79,24 @@ async function getUpcomingMatches() {
   return rows;
 }
 
+async function getAllTeams() {
+  const [rows] = await pool.execute(
+    `SELECT id, name FROM teams ORDER BY name ASC`
+  );
+  return rows;
+}
+
+async function getUnassignedTeams() {
+  const [rows] = await pool.execute(
+    `SELECT t.id, t.name
+     FROM teams t
+     LEFT JOIN capitaines_discord cd ON cd.team_id = t.id
+     WHERE cd.team_id IS NULL
+     ORDER BY t.name ASC`
+  );
+  return rows;
+}
+
 async function getMatchesByTeamId(teamId) {
   const [rows] = await pool.execute(
     `SELECT dm.*
@@ -169,6 +187,8 @@ module.exports = {
   getAllPendingMatches,
   getUpcomingMatchesInDays,
   getUpcomingMatches,
+  getAllTeams,
+  getUnassignedTeams,
   getMatchesByTeamId,
   getMatchById,
   setMatchDate,

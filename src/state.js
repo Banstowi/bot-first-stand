@@ -10,6 +10,8 @@ const DEFAULT_STATE = {
   teamMessageIds: {},             // { teamId: { matchId: discordMessageId } }
   announcementChannelId: null,
   calendarChannelId: null,
+  listingChannelId: null,         // Channel showing captains per team
+  listingMessageId: null,         // Message ID of the listing embed
   ticketCategoryId: null,
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
@@ -147,6 +149,26 @@ function setCalendarChannelId(id) {
   save(s);
 }
 
+function getListingChannelId() {
+  return load().listingChannelId || null;
+}
+
+function setListingChannelId(id) {
+  const s = load();
+  s.listingChannelId = id;
+  save(s);
+}
+
+function getListingMessageId() {
+  return load().listingMessageId || null;
+}
+
+function setListingMessageId(id) {
+  const s = load();
+  s.listingMessageId = id;
+  save(s);
+}
+
 function getTicketCategoryId() {
   return load().ticketCategoryId || null;
 }
@@ -200,6 +222,10 @@ module.exports = {
   setAnnouncementChannelId,
   getCalendarChannelId,
   setCalendarChannelId,
+  getListingChannelId,
+  setListingChannelId,
+  getListingMessageId,
+  setListingMessageId,
   getTicketCategoryId,
   setTicketCategoryId,
   // Deletions

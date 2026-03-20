@@ -12,6 +12,8 @@ const {
   getMatchById,
 } = require('./database');
 const { refreshAllTeamChannels } = require('./calendarManager');
+const { refreshListing } = require('./listingManager');
+const { getAllTeams, getUnassignedTeams } = require('./database');
 const { handleTicketOpen } = require('./ticketManager');
 
 const setupCommand = new SlashCommandBuilder()
@@ -56,8 +58,16 @@ const setupCommand = new SlashCommandBuilder()
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription("Canal de l'équipe").setRequired(true)
       )
-      .addIntegerOption((opt) =>
-        opt.setName('team_id').setDescription("ID de l'équipe dans la base de données").setRequired(true)
+      .addStringOption((opt) =>
+        opt.setName('equipe').setDescription("Nom de l'équipe").setRequired(true).setAutocomplete(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('listing')
+      .setDescription('Canal affichant la liste des capitaines par équipe')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal du listing').setRequired(true)
       )
   );
 
@@ -81,8 +91,8 @@ const capitaineCommand = new SlashCommandBuilder()
       .addUserOption((opt) =>
         opt.setName('utilisateur').setDescription('Utilisateur Discord à désigner capitaine').setRequired(true)
       )
-      .addIntegerOption((opt) =>
-        opt.setName('team_id').setDescription("ID de l'équipe dans la base de données").setRequired(true)
+      .addStringOption((opt) =>
+        opt.setName('equipe').setDescription("Nom de l'équipe").setRequired(true).setAutocomplete(true)
       )
   )
   .addSubcommand((sub) =>
@@ -155,6 +165,11 @@ async function handleSetup(interaction, client) {
         {
           name: '🏅 Canaux équipes',
           value: teamLines.length > 0 ? teamLines.join('\n') : '❌ Aucun configuré',
+        },
+        {
+          name: '📋 Canal listing',
+          value: state.getListingChannelId() ? `<#${state.getListingChannelId()}>` : '❌ Non configuré',
+          inline: true,
         }
       );
     return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -200,9 +215,24 @@ async function handleSetup(interaction, client) {
     });
   }
 
+  if (sub === 'listing') {
+    state.setListingChannelId(channel.id);
+    await interaction.deferReply({ ephemeral: true });
+    await refreshListing(client);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Canal listing configuré sur <#${channel.id}>\nLa liste des capitaines y est affichée et mise à jour automatiquement.`),
+      ],
+    });
+  }
+
   if (sub === 'equipe') {
-    const channel = interaction.options.getChannel('canal');
-    const teamId = interaction.options.getInteger('team_id');
+    const teamId = parseInt(interaction.options.getString('equipe'), 10);
+    if (isNaN(teamId)) {
+      return interaction.reply({ content: '❌ Équipe invalide. Sélectionnez une équipe dans la liste.', ephemeral: true });
+    }
     state.setTeamChannelId(teamId, channel.id);
     await interaction.deferReply({ ephemeral: true });
     await refreshAllTeamChannels(client);
@@ -256,9 +286,13 @@ async function handleCapitaine(interaction) {
 
   if (sub === 'add') {
     const user = interaction.options.getUser('utilisateur');
-    const teamId = interaction.options.getInteger('team_id');
+    const teamId = parseInt(interaction.options.getString('equipe'), 10);
+    if (isNaN(teamId)) {
+      return interaction.reply({ content: '❌ Équipe invalide. Sélectionnez une équipe dans la liste.', ephemeral: true });
+    }
     try {
       await setCapitaine(user.id, teamId);
+      await refreshListing(interaction.client);
       return interaction.reply({
         embeds: [
           new EmbedBuilder()
@@ -268,16 +302,14 @@ async function handleCapitaine(interaction) {
         ephemeral: true,
       });
     } catch (err) {
-      const msg = err.code === 'ER_NO_REFERENCED_ROW_2'
-        ? `❌ Aucune équipe avec l'ID \`${teamId}\` trouvée dans la base de données.`
-        : `❌ Erreur : ${err.message}`;
-      return interaction.reply({ content: msg, ephemeral: true });
+      return interaction.reply({ content: `❌ Erreur : ${err.message}`, ephemeral: true });
     }
   }
 
   if (sub === 'remove') {
     const user = interaction.options.getUser('utilisateur');
     const removed = await removeCapitaine(user.id);
+    if (removed) await refreshListing(interaction.client);
     return interaction.reply({
       embeds: [
         new EmbedBuilder()
@@ -420,6 +452,34 @@ async function handleSetdate(interaction, client) {
   });
 }
 
+async function handleAutocomplete(interaction) {
+  const { commandName } = interaction;
+  const sub = interaction.options.getSubcommand(false);
+  const focused = interaction.options.getFocused().toLowerCase();
+
+  // /capitaine add equipe → non-assigned teams
+  if (commandName === 'capitaine' && sub === 'add') {
+    const teams = await getUnassignedTeams();
+    const choices = teams
+      .filter((t) => t.name.toLowerCase().includes(focused))
+      .slice(0, 25)
+      .map((t) => ({ name: t.name, value: String(t.id) }));
+    return interaction.respond(choices);
+  }
+
+  // /setup equipe equipe → all teams (can reassign a channel)
+  if (commandName === 'setup' && sub === 'equipe') {
+    const teams = await getAllTeams();
+    const choices = teams
+      .filter((t) => t.name.toLowerCase().includes(focused))
+      .slice(0, 25)
+      .map((t) => ({ name: t.name, value: String(t.id) }));
+    return interaction.respond(choices);
+  }
+
+  return interaction.respond([]);
+}
+
 async function handleRefresh(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -450,4 +510,5 @@ module.exports = {
   handleLookScrim,
   handleCapitaine,
   handleSetdate,
+  handleAutocomplete,
 };

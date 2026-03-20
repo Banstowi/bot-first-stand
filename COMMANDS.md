@@ -9,7 +9,8 @@
 |---|---|
 | `/setup annonce canal:#salon` | Définit le salon où les matchs sont annoncés **1h avant** le début |
 | `/setup calendrier canal:#salon` | Définit le salon affichant les **2 prochains matchs par équipe** (mis à jour toutes les 2 min) |
-| `/setup equipe canal:#salon team_id:42` | Associe un salon à une équipe — affiche ses **3 prochains matchs** uniquement |
+| `/setup equipe canal:#salon equipe:<nom>` | Associe un salon à une équipe — affiche ses **3 prochains matchs** uniquement |
+| `/setup listing canal:#salon` | Définit le salon affichant la **liste des capitaines par équipe** (mise à jour auto) |
 | `/setup ticket categorie:#categorie` | Définit la catégorie Discord où sont créés les tickets de support |
 | `/setup status` | Affiche la configuration actuelle de tous les canaux |
 
@@ -20,7 +21,7 @@
 
 | Commande | Description |
 |---|---|
-| `/capitaine add utilisateur:@user team_id:42` | Enregistre un utilisateur comme **capitaine** de l'équipe `#42` |
+| `/capitaine add utilisateur:@user equipe:<nom>` | Enregistre un utilisateur comme **capitaine** — liste déroulante des équipes sans capitaine |
 | `/capitaine remove utilisateur:@user` | Retire le rôle capitaine d'un utilisateur |
 | `/capitaine list` | Liste tous les capitaines enregistrés avec leur équipe |
 

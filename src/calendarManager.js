@@ -172,7 +172,7 @@ async function refreshCalendar(client) {
       setMsg:    (id, msgId) => state.setCalendarMessageId(id, msgId),
       removeMsg: (id) => state.removeCalendarMessageId(id),
       getAllMsgs: () => state.getAllCalendarMessageIds(),
-    }, 'Calendar');
+    }, 'Calendar', { imageOnly: true });
   } catch (err) {
     console.error('[Calendar] Erreur lors de la mise à jour du calendrier:', err);
   }
@@ -195,7 +195,7 @@ async function refreshTeamChannel(client, teamId, channelId) {
       setMsg:    (id, msgId) => state.setTeamMessageId(teamId, id, msgId),
       removeMsg: (id) => state.removeTeamMessageId(teamId, id),
       getAllMsgs: () => state.getAllTeamMessageIds(teamId),
-    }, `TeamChannel#${teamId}`, { imageOnly: true, limit: 2 });
+    }, `TeamChannel#${teamId}`, { imageOnly: true, limit: 3 });
   } catch (err) {
     console.error(`[TeamChannel] Erreur pour équipe #${teamId}:`, err);
   }

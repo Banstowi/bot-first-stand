@@ -140,6 +140,13 @@ async function generateMatchCard(match) {
     ctx.fillText(match.round_name.toUpperCase(), TLOGO_CX + TLOGO_R + 12, TLOGO_CY + 12);
   }
 
+  // Match ID (top-right, discreet)
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#44446a';
+  ctx.font = '12px sans-serif';
+  ctx.fillText(`#${match.id}`, W - 16, HEADER_H / 2);
+
   // ── Team logos ──────────────────────────────────────────────────────────
   drawCircleImage(ctx, team1Img, TEAM1_CX, LOGO_CY, LOGO_R);
   drawCircleImage(ctx, team2Img, TEAM2_CX, LOGO_CY, LOGO_R);

@@ -5,11 +5,12 @@ const cron = require('node-cron');
 const { testConnection, setupDatabase } = require('./database');
 const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
 const { refreshCalendar, refreshAllTeamChannels } = require('./calendarManager');
+const { refreshListing } = require('./listingManager');
 const {
   setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
   capitaineCommand, setdateCommand,
   handleSetup, handleRefresh, handleTicket, handleLookScrim,
-  handleCapitaine, handleSetdate,
+  handleCapitaine, handleSetdate, handleAutocomplete,
 } = require('./commands');
 const { createTicket, closeTicket } = require('./ticketManager');
 
@@ -58,22 +59,33 @@ client.once('ready', async () => {
   await checkNewMatches(client);
   await refreshCalendar(client);
   await refreshAllTeamChannels(client);
+  await refreshListing(client);
 
   // Check for new matches every 2 minutes
   cron.schedule('*/2 * * * *', () => {
     checkNewMatches(client);
   });
 
-  // Refresh calendar and team channels every 2 minutes
+  // Refresh calendar, team channels and listing every 2 minutes
   cron.schedule('*/2 * * * *', () => {
     refreshCalendar(client);
     refreshAllTeamChannels(client);
+    refreshListing(client);
   });
 
   console.log('[Bot] Tâches planifiées actives. Bot prêt !');
 });
 
 client.on('interactionCreate', async (interaction) => {
+  // Autocomplete interactions must be handled immediately (no deferring)
+  if (interaction.isAutocomplete()) {
+    await handleAutocomplete(interaction).catch((err) => {
+      console.error('[Bot] Erreur autocomplete:', err);
+      interaction.respond([]).catch(() => {});
+    });
+    return;
+  }
+
   let handler = null;
 
   if (interaction.isChatInputCommand()) {

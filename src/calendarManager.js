@@ -35,6 +35,7 @@ function buildMatchEmbed(match) {
 
   if (date) embed.setTimestamp(date);
   if (match.twitch_link) embed.addFields({ name: '🎮 Stream', value: match.twitch_link, inline: true });
+  if (match.opposing_captain_name) embed.addFields({ name: '👑 Capitaine adverse', value: match.opposing_captain_name, inline: true });
 
   return embed;
 }
@@ -84,17 +85,32 @@ function filterTopNPerTeam(matches, n) {
 // ─── Shared channel sync ──────────────────────────────────────────────────────
 
 /**
+ * Returns a fingerprint string for the dynamic parts of a match card (date/time).
+ * Used to detect whether an imageOnly card needs to be regenerated.
+ */
+function matchFp(match) {
+  return String(match.match_date || '') + '|' + String(match.score1 ?? '') + '|' + String(match.score2 ?? '');
+}
+
+/**
  * Syncs a list of matches to a Discord channel.
  *
  * Options:
  *   imageOnly {boolean} — send only the card image (no embed text). Default: false.
  *   limit     {number}  — max matches to display. Default: unlimited.
  *
+ * Callbacks:
+ *   getMsg(id)            → stored Discord message ID (string|null)
+ *   getFp(id)             → stored fingerprint of the last card (string|null)
+ *   setMsg(id, msgId, fp) → persist message ID + fingerprint
+ *   removeMsg(id)         → clear entry
+ *   getAllMsgs()          → { matchId: msgId } map
+ *
  * In embed mode  : edits the embed in place (keeps image), reposts only if missing.
- * In imageOnly   : keeps existing image messages as-is; replaces any old embed-style
- *                  message with an image-only one; only reposts when explicitly cleared.
+ * In imageOnly   : regenerates the card when the fingerprint changed (date/score),
+ *                  keeps it otherwise; replaces any old embed-style message.
  */
-async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMsg, getAllMsgs }, label, options = {}) {
+async function syncMatchesToChannel(channel, matches, { getMsg, getFp, setMsg, removeMsg, getAllMsgs }, label, options = {}) {
   const { imageOnly = false, limit = null } = options;
 
   // Apply limit
@@ -139,7 +155,15 @@ async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMs
               removeMsg(matchIdStr);
               // Fall through to post the image-only message below
             } else {
-              continue; // Already image-only and up-to-date, keep it
+              // Regenerate the card only if the match data has changed since last post
+              const storedFp = getFp ? getFp(matchIdStr) : null;
+              const currentFp = matchFp(match);
+              if (storedFp === currentFp) {
+                continue; // Card is up-to-date, keep it
+              }
+              // Date or score changed — delete old card and repost below
+              await existingMsg.delete().catch(() => {});
+              removeMsg(matchIdStr);
             }
           } else {
             // Embed mode: edit the embed in place (keeps existing image attachment)
@@ -158,11 +182,11 @@ async function syncMatchesToChannel(channel, matches, { getMsg, setMsg, removeMs
       if (imageOnly) {
         const { attachment } = await buildMatchMessage(match);
         const sent = await channel.send({ files: [attachment] });
-        setMsg(matchIdStr, sent.id);
+        setMsg(matchIdStr, sent.id, matchFp(match));
       } else {
         const { embed, attachment } = await buildMatchMessage(match);
         const sent = await channel.send({ embeds: [embed], files: [attachment] });
-        setMsg(matchIdStr, sent.id);
+        setMsg(matchIdStr, sent.id, matchFp(match));
       }
       console.log(`[${label}] Carte postée pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);
     } catch (err) {
@@ -204,7 +228,8 @@ async function refreshCalendar(client) {
     const matches = filterTopNPerTeam(allMatches, 2);
     await syncMatchesToChannel(channel, matches, {
       getMsg:    (id) => state.getCalendarMessageId(id),
-      setMsg:    (id, msgId) => state.setCalendarMessageId(id, msgId),
+      getFp:     (id) => state.getCalendarMessageFp(id),
+      setMsg:    (id, msgId, fp) => state.setCalendarMessageId(id, msgId, fp),
       removeMsg: (id) => state.removeCalendarMessageId(id),
       getAllMsgs: () => state.getAllCalendarMessageIds(),
     }, 'Calendar', { imageOnly: true });
@@ -225,9 +250,19 @@ async function refreshTeamChannel(client, teamId, channelId) {
   console.log(`[TeamChannel] Mise à jour du canal équipe #${teamId}...`);
   try {
     const matches = await getMatchesByTeamId(teamId);
+
+    // Resolve opposing captain Discord names (text only, no ping)
+    for (const match of matches) {
+      if (match.opposing_captain_id) {
+        const user = await client.users.fetch(match.opposing_captain_id).catch(() => null);
+        match.opposing_captain_name = user ? (user.globalName || user.username) : null;
+      }
+    }
+
     await syncMatchesToChannel(channel, matches, {
       getMsg:    (id) => state.getTeamMessageId(teamId, id),
-      setMsg:    (id, msgId) => state.setTeamMessageId(teamId, id, msgId),
+      getFp:     (id) => state.getTeamMessageFp(teamId, id),
+      setMsg:    (id, msgId, fp) => state.setTeamMessageId(teamId, id, msgId, fp),
       removeMsg: (id) => state.removeTeamMessageId(teamId, id),
       getAllMsgs: () => state.getAllTeamMessageIds(teamId),
     }, `TeamChannel#${teamId}`, { imageOnly: true, limit: 3 });

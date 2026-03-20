@@ -10,6 +10,8 @@ const DEFAULT_STATE = {
   teamMessageIds: {},             // { teamId: { matchId: discordMessageId } }
   announcementChannelId: null,
   calendarChannelId: null,
+  listingChannelId: null,         // Channel showing captains per team
+  listingMessageId: null,         // Message ID of the listing embed
   ticketCategoryId: null,
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
@@ -49,13 +51,21 @@ function markKnown(matchId) {
 
 // ─── General calendar message IDs ────────────────────────────────────────────
 
+// Entries may be a plain string (legacy) or { id, fp } (current format).
+function _entryId(entry)  { return (entry && typeof entry === 'object') ? entry.id  : (entry || null); }
+function _entryFp(entry)  { return (entry && typeof entry === 'object') ? entry.fp  : null; }
+
 function getCalendarMessageId(matchId) {
-  return load().calendarMessageIds[matchId] || null;
+  return _entryId(load().calendarMessageIds[matchId]);
 }
 
-function setCalendarMessageId(matchId, messageId) {
+function getCalendarMessageFp(matchId) {
+  return _entryFp(load().calendarMessageIds[matchId]);
+}
+
+function setCalendarMessageId(matchId, messageId, fp = null) {
   const state = load();
-  state.calendarMessageIds[matchId] = messageId;
+  state.calendarMessageIds[matchId] = { id: messageId, fp };
   save(state);
 }
 
@@ -66,7 +76,11 @@ function removeCalendarMessageId(matchId) {
 }
 
 function getAllCalendarMessageIds() {
-  return load().calendarMessageIds;
+  // Always return { matchId: string_msgId } regardless of internal format
+  const raw = load().calendarMessageIds;
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) out[k] = _entryId(v);
+  return out;
 }
 
 // ─── Team channels ────────────────────────────────────────────────────────────
@@ -101,15 +115,20 @@ function getAllTeamChannelIds() {
 // ─── Team channel message IDs ─────────────────────────────────────────────────
 
 function getTeamMessageId(teamId, matchId) {
-  const state = load();
-  return (state.teamMessageIds[String(teamId)] || {})[String(matchId)] || null;
+  const entry = ((load().teamMessageIds || {})[String(teamId)] || {})[String(matchId)];
+  return _entryId(entry);
 }
 
-function setTeamMessageId(teamId, matchId, messageId) {
+function getTeamMessageFp(teamId, matchId) {
+  const entry = ((load().teamMessageIds || {})[String(teamId)] || {})[String(matchId)];
+  return _entryFp(entry);
+}
+
+function setTeamMessageId(teamId, matchId, messageId, fp = null) {
   const state = load();
   if (!state.teamMessageIds) state.teamMessageIds = {};
   if (!state.teamMessageIds[String(teamId)]) state.teamMessageIds[String(teamId)] = {};
-  state.teamMessageIds[String(teamId)][String(matchId)] = messageId;
+  state.teamMessageIds[String(teamId)][String(matchId)] = { id: messageId, fp };
   save(state);
 }
 
@@ -122,7 +141,11 @@ function removeTeamMessageId(teamId, matchId) {
 }
 
 function getAllTeamMessageIds(teamId) {
-  return (load().teamMessageIds || {})[String(teamId)] || {};
+  // Always return { matchId: string_msgId } regardless of internal format
+  const raw = (load().teamMessageIds || {})[String(teamId)] || {};
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) out[k] = _entryId(v);
+  return out;
 }
 
 // ─── Channels config ──────────────────────────────────────────────────────────
@@ -144,6 +167,26 @@ function getCalendarChannelId() {
 function setCalendarChannelId(id) {
   const s = load();
   s.calendarChannelId = id;
+  save(s);
+}
+
+function getListingChannelId() {
+  return load().listingChannelId || null;
+}
+
+function setListingChannelId(id) {
+  const s = load();
+  s.listingChannelId = id;
+  save(s);
+}
+
+function getListingMessageId() {
+  return load().listingMessageId || null;
+}
+
+function setListingMessageId(id) {
+  const s = load();
+  s.listingMessageId = id;
   save(s);
 }
 
@@ -183,6 +226,7 @@ module.exports = {
   markKnown,
   // General calendar
   getCalendarMessageId,
+  getCalendarMessageFp,
   setCalendarMessageId,
   removeCalendarMessageId,
   getAllCalendarMessageIds,
@@ -192,6 +236,7 @@ module.exports = {
   removeTeamChannelId,
   getAllTeamChannelIds,
   getTeamMessageId,
+  getTeamMessageFp,
   setTeamMessageId,
   removeTeamMessageId,
   getAllTeamMessageIds,
@@ -200,6 +245,10 @@ module.exports = {
   setAnnouncementChannelId,
   getCalendarChannelId,
   setCalendarChannelId,
+  getListingChannelId,
+  setListingChannelId,
+  getListingMessageId,
+  setListingMessageId,
   getTicketCategoryId,
   setTicketCategoryId,
   // Deletions

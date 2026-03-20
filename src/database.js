@@ -79,13 +79,52 @@ async function getUpcomingMatches() {
   return rows;
 }
 
+async function getCapitaineByTeamId(teamId) {
+  const [rows] = await pool.execute(
+    `SELECT cd.discord_user_id, t.name AS team_name
+     FROM capitaines_discord cd
+     JOIN teams t ON t.id = cd.team_id
+     WHERE cd.team_id = ?`,
+    [teamId]
+  );
+  return rows[0] || null;
+}
+
+async function getAllTeams() {
+  const [rows] = await pool.execute(
+    `SELECT id, name FROM teams ORDER BY name ASC`
+  );
+  return rows;
+}
+
+async function getUnassignedTeams() {
+  const [rows] = await pool.execute(
+    `SELECT t.id, t.name
+     FROM teams t
+     LEFT JOIN capitaines_discord cd ON cd.team_id = t.id
+     WHERE cd.team_id IS NULL
+     ORDER BY t.name ASC`
+  );
+  return rows;
+}
+
 async function getMatchesByTeamId(teamId) {
   const [rows] = await pool.execute(
-    `SELECT dm.*
+    `SELECT dm.*,
+            cap_opp.discord_user_id AS opposing_captain_id
      FROM discord_matches dm
-     JOIN teams t ON (t.name = dm.team1_name OR t.name = dm.team2_name)
+     JOIN teams t ON (
+       t.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR
+       t.name COLLATE utf8mb4_unicode_ci = dm.team2_name
+     )
+     LEFT JOIN teams t_opp ON (
+       (t_opp.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR
+        t_opp.name COLLATE utf8mb4_unicode_ci = dm.team2_name)
+       AND t_opp.id != t.id
+     )
+     LEFT JOIN capitaines_discord cap_opp ON cap_opp.team_id = t_opp.id
      WHERE t.id = ? AND dm.status = 'PENDING'
-     ORDER BY (dm.match_date IS NULL) ASC, dm.id ASC`,
+     ORDER BY (dm.match_date IS NULL) DESC, dm.id ASC`,
     [teamId]
   );
   return rows;
@@ -154,7 +193,7 @@ async function isMatchForCapitaine(matchId, discordUserId) {
   const [rows] = await pool.execute(
     `SELECT dm.id
      FROM discord_matches dm
-     JOIN teams t ON (t.name = dm.team1_name OR t.name = dm.team2_name)
+     JOIN teams t ON (t.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR t.name COLLATE utf8mb4_unicode_ci = dm.team2_name)
      JOIN capitaines_discord cd ON cd.team_id = t.id
      WHERE cd.discord_user_id = ? AND dm.id = ?`,
     [discordUserId, matchId]
@@ -169,6 +208,9 @@ module.exports = {
   getAllPendingMatches,
   getUpcomingMatchesInDays,
   getUpcomingMatches,
+  getCapitaineByTeamId,
+  getAllTeams,
+  getUnassignedTeams,
   getMatchesByTeamId,
   getMatchById,
   setMatchDate,

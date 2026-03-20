@@ -35,6 +35,7 @@ function buildMatchEmbed(match) {
 
   if (date) embed.setTimestamp(date);
   if (match.twitch_link) embed.addFields({ name: '🎮 Stream', value: match.twitch_link, inline: true });
+  if (match.opposing_captain_name) embed.addFields({ name: '👑 Capitaine adverse', value: match.opposing_captain_name, inline: true });
 
   return embed;
 }
@@ -225,6 +226,15 @@ async function refreshTeamChannel(client, teamId, channelId) {
   console.log(`[TeamChannel] Mise à jour du canal équipe #${teamId}...`);
   try {
     const matches = await getMatchesByTeamId(teamId);
+
+    // Resolve opposing captain Discord names (text only, no ping)
+    for (const match of matches) {
+      if (match.opposing_captain_id) {
+        const user = await client.users.fetch(match.opposing_captain_id).catch(() => null);
+        match.opposing_captain_name = user ? (user.globalName || user.username) : null;
+      }
+    }
+
     await syncMatchesToChannel(channel, matches, {
       getMsg:    (id) => state.getTeamMessageId(teamId, id),
       setMsg:    (id, msgId) => state.setTeamMessageId(teamId, id, msgId),

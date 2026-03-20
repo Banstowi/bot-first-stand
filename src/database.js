@@ -112,7 +112,10 @@ async function getMatchesByTeamId(teamId) {
   const [rows] = await pool.execute(
     `SELECT dm.*
      FROM discord_matches dm
-     JOIN teams t ON (t.name = dm.team1_name OR t.name = dm.team2_name)
+     JOIN teams t ON (
+       t.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR
+       t.name COLLATE utf8mb4_unicode_ci = dm.team2_name
+     )
      WHERE t.id = ? AND dm.status = 'PENDING'
      ORDER BY (dm.match_date IS NULL) ASC, dm.id ASC`,
     [teamId]

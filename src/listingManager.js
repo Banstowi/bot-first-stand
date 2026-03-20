@@ -14,18 +14,39 @@ async function refreshListing(client) {
 
   const capitaines = await getAllCapitaines();
 
+  let description;
+  if (capitaines.length === 0) {
+    description = 'Aucun capitaine enregistré pour le moment.';
+  } else {
+    // Resolve Discord display names
+    const rows = [];
+    for (const c of capitaines) {
+      const user = await client.users.fetch(c.discord_user_id).catch(() => null);
+      const name = user ? (user.globalName || user.username) : `<@${c.discord_user_id}>`;
+      rows.push({ team: c.team_name, captain: name });
+    }
+
+    // Compute column widths
+    const colTeam = Math.max('Équipe'.length, ...rows.map((r) => r.team.length));
+    const colCap  = Math.max('Capitaine'.length, ...rows.map((r) => r.captain.length));
+
+    const pad = (s, n) => s + ' '.repeat(n - s.length);
+    const divider = '─'.repeat(colTeam + 1) + '┼' + '─'.repeat(colCap + 2);
+
+    const lines = [
+      `${pad('Équipe', colTeam)} │ Capitaine`,
+      divider,
+      ...rows.map((r) => `${pad(r.team, colTeam)} │ ${r.captain}`),
+    ];
+
+    description = '```\n' + lines.join('\n') + '\n```';
+  }
+
   const embed = new EmbedBuilder()
     .setColor(0x5555cc)
-    .setTitle('🏅 Capitaines des équipes')
+    .setTitle('🥇 Capitaines des équipes')
+    .setDescription(description)
     .setTimestamp();
-
-  if (capitaines.length === 0) {
-    embed.setDescription('Aucun capitaine enregistré pour le moment.');
-  } else {
-    for (const c of capitaines) {
-      embed.addFields({ name: c.team_name, value: `<@${c.discord_user_id}>`, inline: true });
-    }
-  }
 
   const existingMsgId = state.getListingMessageId();
   if (existingMsgId) {

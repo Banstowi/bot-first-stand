@@ -55,7 +55,8 @@ async function refreshCalendar(client) {
   console.log('[Calendar] Mise à jour du calendrier...');
 
   try {
-    const upcomingMatches = await getUpcomingMatchesInDays(3);
+    const upcomingMatches = (await getUpcomingMatchesInDays(3))
+      .sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
     const upcomingIds = new Set(upcomingMatches.map((m) => String(m.id)));
     const existingIds = state.getAllCalendarMessageIds();
 
@@ -90,16 +91,21 @@ async function refreshCalendar(client) {
       const existingMsgId = state.getCalendarMessageId(matchIdStr);
 
       try {
-        const { embed, attachment } = await buildMatchMessage(match);
-
         if (existingMsgId) {
-          // Delete old message and repost (Discord doesn't support editing attachments)
+          // Try to edit the existing message (embed only, keeps the image attachment)
           const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
-          if (existingMsg) await existingMsg.delete().catch(() => {});
+          if (existingMsg) {
+            const { embed } = await buildMatchMessage(match);
+            await existingMsg.edit({ embeds: [embed] });
+            console.log(`[Calendar] Carte mise à jour pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);
+            continue;
+          }
+          // Message no longer exists in Discord — remove stale state and repost
           state.removeCalendarMessageId(matchIdStr);
         }
 
-        // Post new message
+        // Post new message with image card
+        const { embed, attachment } = await buildMatchMessage(match);
         const sent = await channel.send({ embeds: [embed], files: [attachment] });
         state.setCalendarMessageId(matchIdStr, sent.id);
         console.log(`[Calendar] Carte postée pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);

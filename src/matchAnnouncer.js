@@ -81,7 +81,7 @@ async function sendMatchAnnouncement(client, match) {
     const embed = buildMatchEmbed(match, filename);
 
     const sent = await channel.send({
-      content: `@everyone 🏆 **Nouveau match à venir !**`,
+      content: `🏆 **Nouveau match à venir !**`,
       embeds: [embed],
       files: [attachment],
     });
@@ -129,6 +129,8 @@ async function checkNewMatches(client) {
 
         if (delay <= 0) {
           immediate.push(match);
+          // Guard immediately so concurrent checks don't queue this match again
+          scheduledAnnouncements.set(match.id, true);
         } else {
           scheduleMatchAnnouncement(client, match);
         }

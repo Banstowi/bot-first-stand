@@ -27,8 +27,7 @@ async function setupDatabase() {
       discord_user_id VARCHAR(32) NOT NULL,
       team_id       INT NOT NULL,
       created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE KEY unique_user (discord_user_id),
-      FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      UNIQUE KEY unique_user (discord_user_id)
     )
   `);
 

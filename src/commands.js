@@ -439,12 +439,33 @@ async function handleSetdate(interaction, client) {
     });
   }
 
-  // Force repost of the calendar card (new date = new image needed)
-  state.removeCalendarMessageId(String(matchId));
-  // Also force repost in all team channels
-  Object.keys(state.getAllTeamChannelIds()).forEach((tid) =>
-    state.removeTeamMessageId(tid, String(matchId))
-  );
+  // Delete old calendar card from Discord then clear state so refresh reposts it
+  const calMsgId = state.getCalendarMessageId(String(matchId));
+  if (calMsgId) {
+    const calChannelId = state.getCalendarChannelId();
+    if (calChannelId) {
+      const calChannel = await client.channels.fetch(calChannelId).catch(() => null);
+      if (calChannel) {
+        const oldMsg = await calChannel.messages.fetch(calMsgId).catch(() => null);
+        if (oldMsg) await oldMsg.delete().catch(() => {});
+      }
+    }
+    state.removeCalendarMessageId(String(matchId));
+  }
+
+  // Delete old team channel cards from Discord then clear state so refresh reposts them
+  const teamChannels = state.getAllTeamChannelIds();
+  for (const [tid, tcid] of Object.entries(teamChannels)) {
+    const oldMsgId = state.getTeamMessageId(tid, String(matchId));
+    if (oldMsgId) {
+      const teamChannel = await client.channels.fetch(tcid).catch(() => null);
+      if (teamChannel) {
+        const oldMsg = await teamChannel.messages.fetch(oldMsgId).catch(() => null);
+        if (oldMsg) await oldMsg.delete().catch(() => {});
+      }
+      state.removeTeamMessageId(tid, String(matchId));
+    }
+  }
 
   await Promise.all([refreshCalendar(client), refreshAllTeamChannels(client)]);
 

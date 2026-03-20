@@ -453,17 +453,19 @@ async function handleSetdate(interaction, client) {
     state.removeCalendarMessageId(String(matchId));
   }
 
-  // Delete old team channel cards from Discord then clear state so refresh reposts them
+  // For each team channel, delete ALL tracked cards and clear state entirely.
+  // This ensures a full ordered repost — including any card left orphaned from
+  // previous sessions that would otherwise block the update (imageOnly continue).
   const teamChannels = state.getAllTeamChannelIds();
   for (const [tid, tcid] of Object.entries(teamChannels)) {
-    const oldMsgId = state.getTeamMessageId(tid, String(matchId));
-    if (oldMsgId) {
-      const teamChannel = await client.channels.fetch(tcid).catch(() => null);
+    const allMsgs = state.getAllTeamMessageIds(tid);
+    const teamChannel = await client.channels.fetch(tcid).catch(() => null);
+    for (const [mid, msgId] of Object.entries(allMsgs)) {
       if (teamChannel) {
-        const oldMsg = await teamChannel.messages.fetch(oldMsgId).catch(() => null);
+        const oldMsg = await teamChannel.messages.fetch(msgId).catch(() => null);
         if (oldMsg) await oldMsg.delete().catch(() => {});
       }
-      state.removeTeamMessageId(tid, String(matchId));
+      state.removeTeamMessageId(tid, mid);
     }
   }
 

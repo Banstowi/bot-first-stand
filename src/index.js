@@ -2,10 +2,15 @@ require('dotenv').config();
 
 const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
 const cron = require('node-cron');
-const { testConnection } = require('./database');
+const { testConnection, setupDatabase } = require('./database');
 const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
 const { refreshCalendar } = require('./calendarManager');
-const { setupCommand, refreshCommand, ticketCommand, lookScrimCommand, handleSetup, handleRefresh, handleTicket, handleLookScrim } = require('./commands');
+const {
+  setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
+  capitaineCommand, setdateCommand,
+  handleSetup, handleRefresh, handleTicket, handleLookScrim,
+  handleCapitaine, handleSetdate,
+} = require('./commands');
 const { createTicket, closeTicket } = require('./ticketManager');
 
 const client = new Client({
@@ -14,7 +19,14 @@ const client = new Client({
 
 async function registerCommands(clientId) {
   const rest = new REST().setToken(process.env.DISCORD_TOKEN);
-  const commands = [setupCommand.toJSON(), refreshCommand.toJSON(), ticketCommand.toJSON(), lookScrimCommand.toJSON()];
+  const commands = [
+    setupCommand.toJSON(),
+    refreshCommand.toJSON(),
+    ticketCommand.toJSON(),
+    lookScrimCommand.toJSON(),
+    capitaineCommand.toJSON(),
+    setdateCommand.toJSON(),
+  ];
 
   try {
     await rest.put(Routes.applicationCommands(clientId), { body: commands });
@@ -30,6 +42,7 @@ client.once('ready', async () => {
   // Test DB connection
   try {
     await testConnection();
+    await setupDatabase();
   } catch (err) {
     console.error('[Bot] Impossible de se connecter à la BDD:', err);
     process.exit(1);
@@ -63,10 +76,12 @@ client.on('interactionCreate', async (interaction) => {
 
   if (interaction.isChatInputCommand()) {
     handler =
-      interaction.commandName === 'setup' ? handleSetup(interaction, client) :
-      interaction.commandName === 'refresh' ? handleRefresh(interaction, client) :
-      interaction.commandName === 'ticket' ? handleTicket(interaction) :
+      interaction.commandName === 'setup'      ? handleSetup(interaction, client) :
+      interaction.commandName === 'refresh'    ? handleRefresh(interaction, client) :
+      interaction.commandName === 'ticket'     ? handleTicket(interaction) :
       interaction.commandName === 'look-scrim' ? handleLookScrim(interaction) :
+      interaction.commandName === 'capitaine'  ? handleCapitaine(interaction) :
+      interaction.commandName === 'setdate'    ? handleSetdate(interaction, client) :
       null;
   } else if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_open') {
     handler = createTicket(interaction, interaction.values[0]);

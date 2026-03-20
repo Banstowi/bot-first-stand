@@ -3,14 +3,11 @@ const { getUpcomingMatchesInDays } = require('./database');
 const { generateMatchCard } = require('./cardGenerator');
 const state = require('./state');
 
-async function buildMatchMessage(match) {
-  const date = new Date(match.match_date);
-  const cardBuffer = await generateMatchCard(match);
-  const filename = `calendar_match_${match.id}.png`;
-  const attachment = new AttachmentBuilder(cardBuffer, { name: filename });
+function buildMatchEmbed(match) {
+  const date = match.match_date ? new Date(match.match_date) : null;
 
   const embed = new EmbedBuilder()
-    .setColor(0x5555cc)
+    .setColor(date ? 0x5555cc : 0x444466)
     .setTitle(`⚔️  ${match.team1_name}  vs  ${match.team2_name}`)
     .setDescription(
       match.round_name
@@ -19,26 +16,36 @@ async function buildMatchMessage(match) {
     )
     .addFields({
       name: '📅 Date',
-      value: date.toLocaleDateString('fr-FR', {
-        weekday: 'long',
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'Europe/Paris',
-      }),
+      value: date
+        ? date.toLocaleDateString('fr-FR', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Europe/Paris',
+          })
+        : '⏳ À définir par le capitaine',
       inline: true,
     })
-    .setImage(`attachment://${filename}`)
-    .setFooter({ text: `Match #${match.id}` })
-    .setTimestamp(date);
+    .setFooter({ text: `Match #${match.id}` });
+
+  if (date) embed.setTimestamp(date);
 
   if (match.twitch_link) {
     embed.addFields({ name: '🎮 Stream', value: match.twitch_link, inline: true });
   }
 
-  return { embed, attachment, filename };
+  return embed;
+}
+
+async function buildMatchMessage(match) {
+  const cardBuffer = await generateMatchCard(match);
+  const filename = `calendar_match_${match.id}.png`;
+  const attachment = new AttachmentBuilder(cardBuffer, { name: filename });
+  const embed = buildMatchEmbed(match).setImage(`attachment://${filename}`);
+  return { embed, attachment };
 }
 
 async function refreshCalendar(client) {
@@ -56,12 +63,12 @@ async function refreshCalendar(client) {
   console.log('[Calendar] Mise à jour du calendrier...');
 
   try {
-    const upcomingMatches = (await getUpcomingMatchesInDays(3))
-      .sort((a, b) => new Date(a.match_date) - new Date(b.match_date));
+    // getUpcomingMatchesInDays already sorts: dated matches ASC, then undated
+    const upcomingMatches = await getUpcomingMatchesInDays(3);
     const upcomingIds = new Set(upcomingMatches.map((m) => String(m.id)));
     const existingIds = state.getAllCalendarMessageIds();
 
-    // Remove messages for matches no longer upcoming (passed or status changed)
+    // Remove messages for matches no longer in scope
     for (const [matchId, msgId] of Object.entries(existingIds)) {
       if (matchId === '_placeholder') continue;
       if (!upcomingIds.has(matchId)) {
@@ -69,14 +76,14 @@ async function refreshCalendar(client) {
           const msg = await channel.messages.fetch(msgId).catch(() => null);
           if (msg) await msg.delete();
         } catch {
-          // Message may already be deleted
+          // Already deleted
         }
         state.removeCalendarMessageId(matchId);
         console.log(`[Calendar] Message supprimé pour match #${matchId}`);
       }
     }
 
-    // Delete placeholder "no match" message if matches are now available
+    // Delete placeholder if matches are now available
     if (upcomingMatches.length > 0) {
       const placeholderMsgId = state.getCalendarMessageId('_placeholder');
       if (placeholderMsgId) {
@@ -86,26 +93,25 @@ async function refreshCalendar(client) {
       }
     }
 
-    // Post or update messages for upcoming matches
+    // Post or update messages for each match
     for (const match of upcomingMatches) {
       const matchIdStr = String(match.id);
       const existingMsgId = state.getCalendarMessageId(matchIdStr);
 
       try {
         if (existingMsgId) {
-          // Try to edit the existing message (embed only, keeps the image attachment)
+          // Edit the embed in place (keeps the existing image attachment)
           const existingMsg = await channel.messages.fetch(existingMsgId).catch(() => null);
           if (existingMsg) {
-            const { embed } = await buildMatchMessage(match);
-            await existingMsg.edit({ embeds: [embed] });
-            console.log(`[Calendar] Carte mise à jour pour match #${match.id} (${match.team1_name} vs ${match.team2_name})`);
+            await existingMsg.edit({ embeds: [buildMatchEmbed(match).setImage(existingMsg.embeds[0]?.image?.url || null)] });
+            console.log(`[Calendar] Carte mise à jour pour match #${match.id}`);
             continue;
           }
-          // Message no longer exists in Discord — remove stale state and repost
+          // Message gone from Discord — remove stale state and repost
           state.removeCalendarMessageId(matchIdStr);
         }
 
-        // Post new message with image card
+        // Post new message with generated card image
         const { embed, attachment } = await buildMatchMessage(match);
         const sent = await channel.send({ embeds: [embed], files: [attachment] });
         state.setCalendarMessageId(matchIdStr, sent.id);
@@ -115,7 +121,7 @@ async function refreshCalendar(client) {
       }
     }
 
-    // If no upcoming matches, post a placeholder (once, tracked in state)
+    // Placeholder when no matches
     if (upcomingMatches.length === 0 && !state.getCalendarMessageId('_placeholder')) {
       const sent = await channel.send({
         embeds: [

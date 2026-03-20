@@ -193,7 +193,7 @@ async function isMatchForCapitaine(matchId, discordUserId) {
   const [rows] = await pool.execute(
     `SELECT dm.id
      FROM discord_matches dm
-     JOIN teams t ON (t.name = dm.team1_name OR t.name = dm.team2_name)
+     JOIN teams t ON (t.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR t.name COLLATE utf8mb4_unicode_ci = dm.team2_name)
      JOIN capitaines_discord cd ON cd.team_id = t.id
      WHERE cd.discord_user_id = ? AND dm.id = ?`,
     [discordUserId, matchId]

@@ -143,4 +143,23 @@ async function closeTicket(interaction) {
   }, 5000);
 }
 
-module.exports = { handleTicketOpen, createTicket, closeTicket };
+async function postTicketPanel(channel) {
+  const embed = new EmbedBuilder()
+    .setColor(0x5555cc)
+    .setDescription(
+      "Ici est l'outil de création de ticket, tu souhaites inscrire une équipe, poser une question sur le tournoi ou faire remonter un problème, ouvre un ticket !"
+    )
+    .setThumbnail('https://i.imgur.com/KPqLMCq.png');
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('ticket_panel_open')
+      .setLabel('Ouvrir un ticket')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🎫')
+  );
+
+  return channel.send({ embeds: [embed], components: [row] });
+}
+
+module.exports = { handleTicketOpen, createTicket, closeTicket, postTicketPanel };

@@ -6,13 +6,14 @@ const { testConnection, setupDatabase } = require('./database');
 const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
 const { refreshCalendar, refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
+const { refreshGuide } = require('./guideManager');
 const {
   setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
   capitaineCommand, setdateCommand,
   handleSetup, handleRefresh, handleTicket, handleLookScrim,
   handleCapitaine, handleSetdate, handleAutocomplete,
 } = require('./commands');
-const { createTicket, closeTicket } = require('./ticketManager');
+const { createTicket, closeTicket, handleTicketOpen } = require('./ticketManager');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -60,6 +61,7 @@ client.once('ready', async () => {
   await refreshCalendar(client);
   await refreshAllTeamChannels(client);
   await refreshListing(client);
+  await refreshGuide(client);
 
   // Check for new matches every 2 minutes
   cron.schedule('*/2 * * * *', () => {
@@ -71,6 +73,7 @@ client.once('ready', async () => {
     refreshCalendar(client);
     refreshAllTeamChannels(client);
     refreshListing(client);
+    refreshGuide(client);
   });
 
   console.log('[Bot] Tâches planifiées actives. Bot prêt !');
@@ -101,6 +104,8 @@ client.on('interactionCreate', async (interaction) => {
     handler = createTicket(interaction, interaction.values[0]);
   } else if (interaction.isButton() && interaction.customId === 'ticket_close') {
     handler = closeTicket(interaction);
+  } else if (interaction.isButton() && interaction.customId === 'ticket_panel_open') {
+    handler = handleTicketOpen(interaction);
   }
 
   if (handler) {

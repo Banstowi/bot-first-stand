@@ -12,6 +12,8 @@ const DEFAULT_STATE = {
   calendarChannelId: null,
   listingChannelId: null,         // Channel showing captains per team
   listingMessageId: null,         // Message ID of the listing embed
+  guideChannelId: null,           // Channel showing captain commands guide
+  guideMessageId: null,           // Message ID of the guide embed
   ticketCategoryId: null,
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
@@ -190,6 +192,26 @@ function setListingMessageId(id) {
   save(s);
 }
 
+function getGuideChannelId() {
+  return load().guideChannelId || null;
+}
+
+function setGuideChannelId(id) {
+  const s = load();
+  s.guideChannelId = id;
+  save(s);
+}
+
+function getGuideMessageId() {
+  return load().guideMessageId || null;
+}
+
+function setGuideMessageId(id) {
+  const s = load();
+  s.guideMessageId = id;
+  save(s);
+}
+
 function getTicketCategoryId() {
   return load().ticketCategoryId || null;
 }
@@ -249,6 +271,10 @@ module.exports = {
   setListingChannelId,
   getListingMessageId,
   setListingMessageId,
+  getGuideChannelId,
+  setGuideChannelId,
+  getGuideMessageId,
+  setGuideMessageId,
   getTicketCategoryId,
   setTicketCategoryId,
   // Deletions

@@ -124,7 +124,7 @@ async function getMatchesByTeamId(teamId) {
      )
      LEFT JOIN capitaines_discord cap_opp ON cap_opp.team_id = t_opp.id
      WHERE t.id = ? AND dm.status = 'PENDING'
-     ORDER BY (dm.match_date IS NULL) DESC, dm.id ASC`,
+     ORDER BY (dm.match_date IS NULL) ASC, dm.match_date ASC, dm.id ASC`,
     [teamId]
   );
   return rows;

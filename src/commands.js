@@ -15,7 +15,7 @@ const { refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
 const { refreshGuide } = require('./guideManager');
 const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./database');
-const { handleTicketOpen } = require('./ticketManager');
+const { handleTicketOpen, postTicketPanel } = require('./ticketManager');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -77,6 +77,14 @@ const setupCommand = new SlashCommandBuilder()
       .setDescription('Canal affichant les commandes utiles aux capitaines')
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription('Canal du guide capitaines').setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('ticket-panel')
+      .setDescription('Poster le panneau de création de ticket dans un canal')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal où poster le panneau ticket').setRequired(true)
       )
   );
 
@@ -252,6 +260,18 @@ async function handleSetup(interaction, client) {
         new EmbedBuilder()
           .setColor(0x00cc66)
           .setDescription(`✅ Canal guide capitaines configuré sur <#${channel.id}>\nLes commandes utiles y sont affichées et mises à jour automatiquement.`),
+      ],
+    });
+  }
+
+  if (sub === 'ticket-panel') {
+    await interaction.deferReply({ ephemeral: true });
+    await postTicketPanel(channel);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Panneau ticket posté dans <#${channel.id}>`),
       ],
     });
   }

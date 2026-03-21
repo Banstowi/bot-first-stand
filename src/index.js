@@ -13,7 +13,7 @@ const {
   handleSetup, handleRefresh, handleTicket, handleLookScrim,
   handleCapitaine, handleSetdate, handleAutocomplete,
 } = require('./commands');
-const { createTicket, closeTicket } = require('./ticketManager');
+const { createTicket, closeTicket, handleTicketOpen } = require('./ticketManager');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -104,6 +104,8 @@ client.on('interactionCreate', async (interaction) => {
     handler = createTicket(interaction, interaction.values[0]);
   } else if (interaction.isButton() && interaction.customId === 'ticket_close') {
     handler = closeTicket(interaction);
+  } else if (interaction.isButton() && interaction.customId === 'ticket_panel_open') {
+    handler = handleTicketOpen(interaction);
   }
 
   if (handler) {

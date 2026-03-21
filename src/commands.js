@@ -13,6 +13,7 @@ const {
 } = require('./database');
 const { refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
+const { refreshGuide } = require('./guideManager');
 const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./database');
 const { handleTicketOpen } = require('./ticketManager');
 
@@ -68,6 +69,14 @@ const setupCommand = new SlashCommandBuilder()
       .setDescription('Canal affichant la liste des capitaines par équipe')
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription('Canal du listing').setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('guide')
+      .setDescription('Canal affichant les commandes utiles aux capitaines')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal du guide capitaines').setRequired(true)
       )
   );
 
@@ -170,6 +179,11 @@ async function handleSetup(interaction, client) {
           name: '📋 Canal listing',
           value: state.getListingChannelId() ? `<#${state.getListingChannelId()}>` : '❌ Non configuré',
           inline: true,
+        },
+        {
+          name: '📖 Canal guide capitaines',
+          value: state.getGuideChannelId() ? `<#${state.getGuideChannelId()}>` : '❌ Non configuré',
+          inline: true,
         }
       );
     return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -224,6 +238,20 @@ async function handleSetup(interaction, client) {
         new EmbedBuilder()
           .setColor(0x00cc66)
           .setDescription(`✅ Canal listing configuré sur <#${channel.id}>\nLa liste des capitaines y est affichée et mise à jour automatiquement.`),
+      ],
+    });
+  }
+
+  if (sub === 'guide') {
+    state.setGuideChannelId(channel.id);
+    state.setGuideMessageId(null);
+    await interaction.deferReply({ ephemeral: true });
+    await refreshGuide(client);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Canal guide capitaines configuré sur <#${channel.id}>\nLes commandes utiles y sont affichées et mises à jour automatiquement.`),
       ],
     });
   }

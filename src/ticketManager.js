@@ -144,12 +144,16 @@ async function closeTicket(interaction) {
 }
 
 async function postTicketPanel(channel) {
+  const { AttachmentBuilder } = require('discord.js');
+  const path = require('path');
+  const logoPath = path.join(__dirname, '..', 'logo.png');
+
   const embed = new EmbedBuilder()
     .setColor(0x5555cc)
     .setDescription(
       "Ici est l'outil de création de ticket, tu souhaites inscrire une équipe, poser une question sur le tournoi ou faire remonter un problème, ouvre un ticket !"
     )
-    .setThumbnail('https://i.imgur.com/KPqLMCq.png');
+    .setThumbnail('attachment://logo.png');
 
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -159,7 +163,8 @@ async function postTicketPanel(channel) {
       .setEmoji('🎫')
   );
 
-  return channel.send({ embeds: [embed], components: [row] });
+  const attachment = new AttachmentBuilder(logoPath, { name: 'logo.png' });
+  return channel.send({ embeds: [embed], components: [row], files: [attachment] });
 }
 
 module.exports = { handleTicketOpen, createTicket, closeTicket, postTicketPanel };

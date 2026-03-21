@@ -24,13 +24,6 @@ function buildGuideEmbeds() {
           '> **Exemple :** `/look-scrim equipe:@MonEquipe date:22/03 heure:21H bo:BO3`',
         ].join('\n'),
       },
-      {
-        name: '🎫 Contacter le staff — `/ticket`',
-        value: [
-          '```/ticket```',
-          'Ouvrez un ticket privé avec l\'équipe organisatrice pour toute question ou litige.',
-        ].join('\n'),
-      },
     )
     .setFooter({ text: 'Ce message est mis à jour automatiquement.' })
     .setTimestamp();

@@ -16,6 +16,7 @@ const { refreshListing } = require('./listingManager');
 const { refreshGuide } = require('./guideManager');
 const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./database');
 const { handleTicketOpen, postTicketPanel } = require('./ticketManager');
+const { postReglement } = require('./reglementManager');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -85,6 +86,14 @@ const setupCommand = new SlashCommandBuilder()
       .setDescription('Poster le panneau de création de ticket dans un canal')
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription('Canal où poster le panneau ticket').setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('reglement')
+      .setDescription('Poster le règlement du tournoi dans un canal (avec navigation par sections)')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal où poster le règlement').setRequired(true)
       )
   );
 
@@ -192,6 +201,11 @@ async function handleSetup(interaction, client) {
           name: '📖 Canal guide capitaines',
           value: state.getGuideChannelId() ? `<#${state.getGuideChannelId()}>` : '❌ Non configuré',
           inline: true,
+        },
+        {
+          name: '📜 Canal règlement',
+          value: state.getReglementChannelId() ? `<#${state.getReglementChannelId()}>` : '❌ Non configuré',
+          inline: true,
         }
       );
     return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -297,6 +311,18 @@ async function handleSetup(interaction, client) {
         new EmbedBuilder()
           .setColor(0x00cc66)
           .setDescription(`✅ Canal équipe configuré sur <#${channel.id}> pour **${teamLabel}**\nLes matchs de cette équipe y seront affichés et mis à jour automatiquement.`),
+      ],
+    });
+  }
+
+  if (sub === 'reglement') {
+    await interaction.deferReply({ ephemeral: true });
+    await postReglement(channel);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Règlement posté dans <#${channel.id}>\nLes 7 sections sont navigables via les boutons.`),
       ],
     });
   }

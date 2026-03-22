@@ -14,6 +14,8 @@ const DEFAULT_STATE = {
   listingMessageId: null,         // Message ID of the listing embed
   guideChannelId: null,           // Channel showing captain commands guide
   guideMessageId: null,           // Message ID of the guide embed
+  reglementChannelId: null,       // Channel showing tournament rules
+  reglementMessageId: null,       // Message ID of the règlement embed
   ticketCategoryId: null,
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
@@ -212,6 +214,26 @@ function setGuideMessageId(id) {
   save(s);
 }
 
+function getReglementChannelId() {
+  return load().reglementChannelId || null;
+}
+
+function setReglementChannelId(id) {
+  const s = load();
+  s.reglementChannelId = id;
+  save(s);
+}
+
+function getReglementMessageId() {
+  return load().reglementMessageId || null;
+}
+
+function setReglementMessageId(id) {
+  const s = load();
+  s.reglementMessageId = id;
+  save(s);
+}
+
 function getTicketCategoryId() {
   return load().ticketCategoryId || null;
 }
@@ -275,6 +297,10 @@ module.exports = {
   setGuideChannelId,
   getGuideMessageId,
   setGuideMessageId,
+  getReglementChannelId,
+  setReglementChannelId,
+  getReglementMessageId,
+  setReglementMessageId,
   getTicketCategoryId,
   setTicketCategoryId,
   // Deletions

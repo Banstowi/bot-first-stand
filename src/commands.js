@@ -10,6 +10,7 @@ const {
   isMatchForCapitaine,
   setMatchDate,
   getMatchById,
+  setMatchResult,
 } = require('./database');
 const { refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
@@ -17,6 +18,7 @@ const { refreshGuide } = require('./guideManager');
 const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./database');
 const { handleTicketOpen, postTicketPanel } = require('./ticketManager');
 const { postReglement } = require('./reglementManager');
+const { postResult } = require('./resultManager');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -95,6 +97,38 @@ const setupCommand = new SlashCommandBuilder()
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription('Canal où poster le règlement').setRequired(true)
       )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('resultats')
+      .setDescription('Canal où les cartes de résultats seront postées après chaque match')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal des résultats').setRequired(true)
+      )
+  );
+
+const resultatCommand = new SlashCommandBuilder()
+  .setName('resultat')
+  .setDescription('Soumettre le résultat d\'un de vos matchs (capitaines uniquement)')
+  .addIntegerOption((opt) =>
+    opt.setName('match_id').setDescription('ID du match (visible dans le calendrier)').setRequired(true)
+  )
+  .addStringOption((opt) =>
+    opt.setName('winner').setDescription('Équipe gagnante').setRequired(true).setAutocomplete(true)
+  )
+  .addIntegerOption((opt) =>
+    opt
+      .setName('nexus_gagnant')
+      .setDescription('Nombre de parties gagnées par le vainqueur')
+      .setRequired(true)
+      .addChoices({ name: '2', value: 2 }, { name: '3', value: 3 })
+  )
+  .addIntegerOption((opt) =>
+    opt
+      .setName('nexus_perdant')
+      .setDescription('Nombre de parties gagnées par le perdant')
+      .setRequired(true)
+      .addChoices({ name: '0', value: 0 }, { name: '1', value: 1 }, { name: '2', value: 2 })
   );
 
 const ticketCommand = new SlashCommandBuilder()
@@ -205,6 +239,11 @@ async function handleSetup(interaction, client) {
         {
           name: '📜 Canal règlement',
           value: state.getReglementChannelId() ? `<#${state.getReglementChannelId()}>` : '❌ Non configuré',
+          inline: true,
+        },
+        {
+          name: '🏆 Canal résultats',
+          value: state.getResultsChannelId() ? `<#${state.getResultsChannelId()}>` : '❌ Non configuré',
           inline: true,
         }
       );
@@ -324,6 +363,18 @@ async function handleSetup(interaction, client) {
           .setColor(0x00cc66)
           .setDescription(`✅ Règlement posté dans <#${channel.id}>\nLes 7 sections sont navigables via les boutons.`),
       ],
+    });
+  }
+
+  if (sub === 'resultats') {
+    state.setResultsChannelId(channel.id);
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Canal résultats configuré sur <#${channel.id}>\nLes cartes de résultats y seront postées après chaque match via \`/resultat\`.`),
+      ],
+      ephemeral: true,
     });
   }
 }
@@ -557,6 +608,123 @@ async function handleSetdate(interaction, client) {
   });
 }
 
+async function handleResultat(interaction, client) {
+  const matchId     = interaction.options.getInteger('match_id');
+  const winner      = interaction.options.getString('winner');
+  const scoreWinner = interaction.options.getInteger('nexus_gagnant');
+  const scoreLoser  = interaction.options.getInteger('nexus_perdant');
+
+  // Validate score
+  if (scoreLoser >= scoreWinner) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc4400)
+          .setDescription('❌ Le nombre de nexus du perdant doit être strictement inférieur à celui du gagnant.'),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  // Must be a captain
+  const capitaine = await getCapitaineTeam(interaction.user.id);
+  if (!capitaine) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setDescription('❌ Vous n\'êtes pas enregistré comme capitaine. Contactez un administrateur.'),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  // Match must exist
+  const match = await getMatchById(matchId);
+  if (!match) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setDescription(`❌ Aucun match trouvé avec l'ID \`#${matchId}\`.`),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  // Match must still be pending
+  if (match.status !== 'PENDING') {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc4400)
+          .setDescription(`❌ Le match \`#${matchId}\` a déjà un résultat enregistré.`),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  // Captain's team must be in this match
+  const hasAccess = await isMatchForCapitaine(matchId, interaction.user.id);
+  if (!hasAccess) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setDescription(`❌ Le match \`#${matchId}\` (**${match.team1_name}** vs **${match.team2_name}**) ne concerne pas votre équipe (**${capitaine.team_name}**).`),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  // Winner must be one of the two teams
+  if (winner !== match.team1_name && winner !== match.team2_name) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc4400)
+          .setDescription(`❌ Le vainqueur doit être **${match.team1_name}** ou **${match.team2_name}**.`),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  const updated = await setMatchResult(matchId, winner, scoreWinner, scoreLoser);
+  if (!updated) {
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setDescription(`❌ Impossible d'enregistrer le résultat du match \`#${matchId}\`. Il est peut-être déjà terminé.`),
+      ],
+    });
+  }
+
+  // Fetch updated match for card generation
+  const updatedMatch = await getMatchById(matchId);
+
+  // Post result card in results channel
+  await postResult(client, updatedMatch);
+
+  // Refresh calendar + team channels (match now COMPLETED → disappears)
+  await Promise.all([refreshCalendar(client), refreshAllTeamChannels(client)]);
+
+  const loser = winner === match.team1_name ? match.team2_name : match.team1_name;
+  return interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x00cc66)
+        .setTitle('✅ Résultat enregistré')
+        .setDescription(
+          `Match \`#${matchId}\` — **${match.team1_name}** vs **${match.team2_name}**\n\n` +
+          `🏆 **${winner}** ${scoreWinner} – ${scoreLoser} **${loser}**\n\nLa carte de résultat a été postée.`
+        ),
+    ],
+  });
+}
+
 async function handleAutocomplete(interaction) {
   const { commandName } = interaction;
   const sub = interaction.options.getSubcommand(false);
@@ -579,6 +747,18 @@ async function handleAutocomplete(interaction) {
       .filter((t) => t.name.toLowerCase().includes(focused))
       .slice(0, 25)
       .map((t) => ({ name: t.name, value: String(t.id) }));
+    return interaction.respond(choices);
+  }
+
+  // /resultat winner → the two teams of the given match
+  if (commandName === 'resultat') {
+    const matchId = interaction.options.getInteger('match_id');
+    if (!matchId) return interaction.respond([]);
+    const match = await getMatchById(matchId).catch(() => null);
+    if (!match) return interaction.respond([]);
+    const choices = [match.team1_name, match.team2_name]
+      .filter((name) => name.toLowerCase().includes(focused))
+      .map((name) => ({ name, value: name }));
     return interaction.respond(choices);
   }
 
@@ -609,11 +789,13 @@ module.exports = {
   lookScrimCommand,
   capitaineCommand,
   setdateCommand,
+  resultatCommand,
   handleSetup,
   handleRefresh,
   handleTicket,
   handleLookScrim,
   handleCapitaine,
   handleSetdate,
+  handleResultat,
   handleAutocomplete,
 };

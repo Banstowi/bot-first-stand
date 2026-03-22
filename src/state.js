@@ -17,6 +17,7 @@ const DEFAULT_STATE = {
   reglementChannelId: null,       // Channel showing tournament rules
   reglementMessageId: null,       // Message ID of the règlement embed
   ticketCategoryId: null,
+  resultsChannelId: null,           // Channel where result cards are posted
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
 
@@ -244,6 +245,16 @@ function setTicketCategoryId(id) {
   save(s);
 }
 
+function getResultsChannelId() {
+  return load().resultsChannelId || null;
+}
+
+function setResultsChannelId(id) {
+  const s = load();
+  s.resultsChannelId = id;
+  save(s);
+}
+
 // ─── Announcement deletions ───────────────────────────────────────────────────
 
 function addPendingAnnouncementDeletion(messageId, channelId, deleteAt) {
@@ -303,6 +314,8 @@ module.exports = {
   setReglementMessageId,
   getTicketCategoryId,
   setTicketCategoryId,
+  getResultsChannelId,
+  setResultsChannelId,
   // Deletions
   addPendingAnnouncementDeletion,
   removePendingAnnouncementDeletion,

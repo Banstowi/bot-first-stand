@@ -47,6 +47,16 @@ async function setupDatabase() {
     // Columns may already exist — ignore
   });
 
+  // Add result columns
+  await pool.execute(`
+    ALTER TABLE discord_matches
+      ADD COLUMN result_winner        VARCHAR(100) NULL,
+      ADD COLUMN result_score_winner  TINYINT      NULL,
+      ADD COLUMN result_score_loser   TINYINT      NULL
+  `).catch(() => {
+    // Columns may already exist — ignore
+  });
+
   console.log('[DB] Structure de la base de données vérifiée.');
 }
 
@@ -232,6 +242,17 @@ async function setSideChoice(matchId, pickerTeam, side) {
   );
 }
 
+async function setMatchResult(matchId, winner, scoreWinner, scoreLoser) {
+  const [result] = await pool.execute(
+    `UPDATE discord_matches
+     SET result_winner = ?, result_score_winner = ?, result_score_loser = ?,
+         status = 'COMPLETED'
+     WHERE id = ? AND status = 'PENDING'`,
+    [winner, scoreWinner, scoreLoser, matchId]
+  );
+  return result.affectedRows > 0;
+}
+
 module.exports = {
   pool,
   testConnection,
@@ -251,5 +272,6 @@ module.exports = {
   getAllCapitaines,
   getTeamPointsByNames,
   setSideChoice,
+  setMatchResult,
   isMatchForCapitaine,
 };

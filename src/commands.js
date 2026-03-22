@@ -12,6 +12,7 @@ const {
   getMatchById,
   setMatchResult,
   correctMatchResult,
+  resetDatabase,
 } = require('./database');
 const { refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
@@ -114,6 +115,17 @@ const setupCommand = new SlashCommandBuilder()
       .setDescription('Canal affichant les commandes de match et le système de side-pick')
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription('Canal des commandes capitaines').setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('reset')
+      .setDescription('⚠️ Réinitialise TOUTE la base de données du tournoi (irréversible)')
+      .addStringOption((opt) =>
+        opt
+          .setName('confirmation')
+          .setDescription('Tapez exactement "CONFIRMER" pour valider la réinitialisation')
+          .setRequired(true)
       )
   );
 
@@ -428,6 +440,40 @@ async function handleSetup(interaction, client) {
         new EmbedBuilder()
           .setColor(0x00cc66)
           .setDescription(`✅ Canal commandes configuré sur <#${channel.id}>\nLes commandes de match et le guide du side-pick y sont affichés.`),
+      ],
+    });
+  }
+
+  if (sub === 'reset') {
+    const confirmation = interaction.options.getString('confirmation');
+    if (confirmation !== 'CONFIRMER') {
+      return interaction.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setColor(0xcc4400)
+            .setTitle('⚠️ Réinitialisation annulée')
+            .setDescription('Vous devez taper exactement `CONFIRMER` dans le champ confirmation.\nAucune donnée n\'a été modifiée.'),
+        ],
+        ephemeral: true,
+      });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+    await resetDatabase();
+
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setTitle('🗑️ Base de données réinitialisée')
+          .setDescription(
+            'Les données suivantes ont été effacées :\n' +
+            '• Tous les capitaines enregistrés (`capitaines_discord`)\n' +
+            '• Dates, résultats, scores et choix de side sur tous les matchs\n\n' +
+            '> Les matchs sont de retour au statut `PENDING`.'
+          )
+          .setFooter({ text: `Réinitialisé par ${interaction.user.tag}` })
+          .setTimestamp(),
       ],
     });
   }

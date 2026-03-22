@@ -290,10 +290,31 @@ async function correctMatchResult(matchId, winner, scoreWinner, scoreLoser) {
   return result.affectedRows > 0;
 }
 
+async function resetDatabase() {
+  // Clear all captain assignments
+  await pool.execute(`TRUNCATE TABLE capitaines_discord`);
+
+  // Reset all bot-managed columns on matches back to their initial state
+  await pool.execute(
+    `UPDATE discord_matches
+     SET match_date           = NULL,
+         status               = 'PENDING',
+         side_picker          = NULL,
+         side_picked          = NULL,
+         result_winner        = NULL,
+         result_score_winner  = NULL,
+         result_score_loser   = NULL,
+         score_team1          = NULL,
+         score_team2          = NULL,
+         winner_id            = NULL`
+  );
+}
+
 module.exports = {
   pool,
   testConnection,
   setupDatabase,
+  resetDatabase,
   getAllPendingMatches,
   getUpcomingMatchesInDays,
   getUpcomingMatches,

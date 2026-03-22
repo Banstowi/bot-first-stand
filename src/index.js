@@ -14,6 +14,7 @@ const {
   handleCapitaine, handleSetdate, handleAutocomplete,
 } = require('./commands');
 const { createTicket, closeTicket, handleTicketOpen } = require('./ticketManager');
+const { handleReglementNav } = require('./reglementManager');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
@@ -106,6 +107,9 @@ client.on('interactionCreate', async (interaction) => {
     handler = closeTicket(interaction);
   } else if (interaction.isButton() && interaction.customId === 'ticket_panel_open') {
     handler = handleTicketOpen(interaction);
+  } else if (interaction.isButton() && interaction.customId.startsWith('reglement_nav_')) {
+    const targetPage = parseInt(interaction.customId.replace('reglement_nav_', ''), 10);
+    handler = handleReglementNav(interaction, targetPage);
   }
 
   if (handler) {

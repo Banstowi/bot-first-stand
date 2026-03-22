@@ -244,22 +244,48 @@ async function setSideChoice(matchId, pickerTeam, side) {
 
 async function setMatchResult(matchId, winner, scoreWinner, scoreLoser) {
   const [result] = await pool.execute(
-    `UPDATE discord_matches
-     SET result_winner = ?, result_score_winner = ?, result_score_loser = ?,
-         status = 'COMPLETED'
-     WHERE id = ? AND status = 'PENDING'`,
-    [winner, scoreWinner, scoreLoser, matchId]
+    `UPDATE discord_matches dm
+     JOIN teams t1 ON t1.name COLLATE utf8mb4_unicode_ci = dm.team1_name
+     JOIN teams t2 ON t2.name COLLATE utf8mb4_unicode_ci = dm.team2_name
+     SET dm.result_winner        = ?,
+         dm.result_score_winner  = ?,
+         dm.result_score_loser   = ?,
+         dm.status               = 'COMPLETED',
+         dm.score_team1 = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.score_team2 = CASE WHEN ? = dm.team2_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.winner_id   = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN t1.id ELSE t2.id END
+     WHERE dm.id = ? AND dm.status = 'PENDING'`,
+    [
+      winner, scoreWinner, scoreLoser,
+      winner, scoreWinner, scoreLoser,   // score_team1
+      winner, scoreWinner, scoreLoser,   // score_team2
+      winner,                            // winner_id
+      matchId,
+    ]
   );
   return result.affectedRows > 0;
 }
 
 async function correctMatchResult(matchId, winner, scoreWinner, scoreLoser) {
   const [result] = await pool.execute(
-    `UPDATE discord_matches
-     SET result_winner = ?, result_score_winner = ?, result_score_loser = ?,
-         status = 'COMPLETED'
-     WHERE id = ?`,
-    [winner, scoreWinner, scoreLoser, matchId]
+    `UPDATE discord_matches dm
+     JOIN teams t1 ON t1.name COLLATE utf8mb4_unicode_ci = dm.team1_name
+     JOIN teams t2 ON t2.name COLLATE utf8mb4_unicode_ci = dm.team2_name
+     SET dm.result_winner        = ?,
+         dm.result_score_winner  = ?,
+         dm.result_score_loser   = ?,
+         dm.status               = 'COMPLETED',
+         dm.score_team1 = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.score_team2 = CASE WHEN ? = dm.team2_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.winner_id   = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN t1.id ELSE t2.id END
+     WHERE dm.id = ?`,
+    [
+      winner, scoreWinner, scoreLoser,
+      winner, scoreWinner, scoreLoser,   // score_team1
+      winner, scoreWinner, scoreLoser,   // score_team2
+      winner,                            // winner_id
+      matchId,
+    ]
   );
   return result.affectedRows > 0;
 }

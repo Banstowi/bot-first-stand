@@ -84,9 +84,11 @@ const LOGO_CY     = HEADER_H + 16 + LOGO_R;   // = 162
 const TEAM1_CX    = 170;
 const TEAM2_CX    = W - 170;
 const CENTER_CX   = W / 2;
-const NAME_Y      = LOGO_CY + LOGO_R + 32;    // = 276
-const SEP_Y       = NAME_Y + 22;              // = 298
-const FOOTER_CY   = SEP_Y + (H - SEP_Y) / 2; // vertically centered in footer
+const NAME_Y      = LOGO_CY + LOGO_R + 30;    // = 274
+const POINTS_Y    = NAME_Y + 24;              // = 298  (points line under team name)
+const SIDE_Y      = POINTS_Y + 22;            // = 320  (side line, shown only when voted)
+const SEP_Y       = SIDE_Y + 18;              // = 338
+const FOOTER_CY   = SEP_Y + (H - SEP_Y) / 2; // vertically centered in footer  ≈ 389
 
 // ─── main export ─────────────────────────────────────────────────────────────
 
@@ -171,6 +173,39 @@ async function generateMatchCard(match) {
   // Team 2
   ctx.fillText(truncate(match.team2_name, 18), TEAM2_CX, NAME_Y);
 
+  // ── Points ───────────────────────────────────────────────────────────────
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#f0c040';
+  if (match.team1_points != null) {
+    ctx.fillText(`${match.team1_points} pts`, TEAM1_CX, POINTS_Y);
+  }
+  if (match.team2_points != null) {
+    ctx.fillText(`${match.team2_points} pts`, TEAM2_CX, POINTS_Y);
+  }
+
+  // ── Side choice ───────────────────────────────────────────────────────────
+  if (match.team1_side || match.team2_side) {
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 14px sans-serif';
+    if (match.team1_side) {
+      ctx.fillStyle = match.team1_side === 'blue' ? '#4da6ff' : '#ff4d4d';
+      ctx.fillText(
+        match.team1_side === 'blue' ? '🔵 Blue side' : '🔴 Red side',
+        TEAM1_CX, SIDE_Y
+      );
+    }
+    if (match.team2_side) {
+      ctx.fillStyle = match.team2_side === 'blue' ? '#4da6ff' : '#ff4d4d';
+      ctx.fillText(
+        match.team2_side === 'blue' ? '🔵 Blue side' : '🔴 Red side',
+        TEAM2_CX, SIDE_Y
+      );
+    }
+  }
+
   // ── Separator ────────────────────────────────────────────────────────────
   ctx.strokeStyle = '#2a2a55';
   ctx.lineWidth = 1;
@@ -201,4 +236,167 @@ async function generateMatchCard(match) {
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { generateMatchCard };
+// ─── Result card ─────────────────────────────────────────────────────────────
+//
+// Same header + logo section as the match card, but:
+//   - winner logo gets a golden ring + radial glow
+//   - loser  logo gets a grey ring + dim overlay
+//   - center shows the score  "2 – 0" instead of "VS"
+//   - winner side: "🏆 Victoire" badge in gold
+//   - footer: "Résultat officiel"
+
+async function generateResultCard(match) {
+  // match must have: result_winner, result_score_winner, result_score_loser
+  const isTeam1Winner = match.result_winner === match.team1_name;
+  const score1 = isTeam1Winner ? match.result_score_winner : match.result_score_loser;
+  const score2 = isTeam1Winner ? match.result_score_loser  : match.result_score_winner;
+
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+
+  const [team1Img, team2Img, tournamentImg] = await Promise.all([
+    tryLoadImage(match.team1_logo),
+    tryLoadImage(match.team2_logo),
+    fs.existsSync(LOGO_PATH) ? loadImage(LOGO_PATH).catch(() => null) : Promise.resolve(null),
+  ]);
+
+  // ── Background ──────────────────────────────────────────────────────────
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0,   '#0b0b1f');
+  bg.addColorStop(0.5, '#111130');
+  bg.addColorStop(1,   '#0b0b1f');
+  ctx.fillStyle = bg;
+  roundedRect(ctx, 0, 0, W, H, 20);
+  ctx.fill();
+
+  // ── Header strip ────────────────────────────────────────────────────────
+  const headerBg = ctx.createLinearGradient(0, 0, W, 0);
+  headerBg.addColorStop(0,   'rgba(30,30,80,0.9)');
+  headerBg.addColorStop(0.5, 'rgba(40,40,100,0.9)');
+  headerBg.addColorStop(1,   'rgba(30,30,80,0.9)');
+  ctx.fillStyle = headerBg;
+  roundedRect(ctx, 0, 0, W, HEADER_H, 20);
+  ctx.fill();
+  ctx.fillRect(0, HEADER_H - 20, W, 20);
+
+  const TLOGO_R = 22;
+  const TLOGO_CX = 36;
+  const TLOGO_CY = HEADER_H / 2;
+  drawCircleImage(ctx, tournamentImg, TLOGO_CX, TLOGO_CY, TLOGO_R, 'T');
+
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  if (match.tournament_name) {
+    ctx.fillStyle = '#e0e0ff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText(truncate(match.tournament_name, 40), TLOGO_CX + TLOGO_R + 12, TLOGO_CY - 9);
+  }
+  if (match.round_name) {
+    ctx.fillStyle = '#8888bb';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(match.round_name.toUpperCase(), TLOGO_CX + TLOGO_R + 12, TLOGO_CY + 12);
+  }
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#6666aa';
+  ctx.font = '13px sans-serif';
+  ctx.fillText(`#${match.id}`, W - 16, HEADER_H / 2);
+
+  // ── Winner glow (radial, behind logo) ────────────────────────────────────
+  const winnerCX = isTeam1Winner ? TEAM1_CX : TEAM2_CX;
+  const glow = ctx.createRadialGradient(winnerCX, LOGO_CY, LOGO_R * 0.4, winnerCX, LOGO_CY, LOGO_R * 1.8);
+  glow.addColorStop(0,   'rgba(240,192,64,0.30)');
+  glow.addColorStop(0.5, 'rgba(240,192,64,0.10)');
+  glow.addColorStop(1,   'rgba(240,192,64,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(winnerCX, LOGO_CY, LOGO_R * 1.8, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ── Team logos ──────────────────────────────────────────────────────────
+  // Helper that draws a logo with a custom ring colour
+  function drawTeamLogo(img, cx, ringColor, dimmed) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, LOGO_CY, LOGO_R, 0, Math.PI * 2);
+    ctx.clip();
+
+    if (img) {
+      ctx.drawImage(img, cx - LOGO_R, LOGO_CY - LOGO_R, LOGO_R * 2, LOGO_R * 2);
+    } else {
+      ctx.fillStyle = '#1e1e3a';
+      ctx.fill();
+      ctx.fillStyle = '#4a4a7a';
+      ctx.font = `bold ${Math.round(LOGO_R * 0.7)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('?', cx, LOGO_CY);
+    }
+
+    if (dimmed) {
+      ctx.fillStyle = 'rgba(0,0,0,0.40)';
+      ctx.fillRect(cx - LOGO_R, LOGO_CY - LOGO_R, LOGO_R * 2, LOGO_R * 2);
+    }
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.arc(cx, LOGO_CY, LOGO_R, 0, Math.PI * 2);
+    ctx.strokeStyle = ringColor;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+
+  drawTeamLogo(team1Img, TEAM1_CX, isTeam1Winner ? '#f0c040' : '#444466', !isTeam1Winner);
+  drawTeamLogo(team2Img, TEAM2_CX, isTeam1Winner ? '#444466' : '#f0c040', isTeam1Winner);
+
+  // ── Score (center) ───────────────────────────────────────────────────────
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold 54px sans-serif';
+  ctx.fillStyle = '#f0c040';
+  ctx.fillText(`${score1}  –  ${score2}`, CENTER_CX, LOGO_CY);
+
+  // ── Team names ──────────────────────────────────────────────────────────
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillStyle = isTeam1Winner ? '#dde0ff' : '#666688';
+  ctx.fillText(truncate(match.team1_name, 18), TEAM1_CX, NAME_Y);
+  ctx.fillStyle = isTeam1Winner ? '#666688' : '#dde0ff';
+  ctx.fillText(truncate(match.team2_name, 18), TEAM2_CX, NAME_Y);
+
+  // ── Victory / Defeat badges ──────────────────────────────────────────────
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = '#f0c040';
+  ctx.fillText('🏆 Victoire', winnerCX, POINTS_Y);
+
+  const loserCX = isTeam1Winner ? TEAM2_CX : TEAM1_CX;
+  ctx.fillStyle = '#555577';
+  ctx.fillText('Défaite', loserCX, POINTS_Y);
+
+  // ── Separator ────────────────────────────────────────────────────────────
+  ctx.strokeStyle = '#2a2a55';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(40, SEP_Y);
+  ctx.lineTo(W - 40, SEP_Y);
+  ctx.stroke();
+
+  // ── Footer ───────────────────────────────────────────────────────────────
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#9999bb';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('  ✅ Résultat officiel', 40, FOOTER_CY);
+
+  if (match.match_date) {
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#666688';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(formatDate(match.match_date), W - 40, FOOTER_CY);
+  }
+
+  ctx.textBaseline = 'alphabetic';
+  return canvas.toBuffer('image/png');
+}
+
+module.exports = { generateMatchCard, generateResultCard };

@@ -1,23 +1,30 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes } = require('discord.js');
 const cron = require('node-cron');
 const { testConnection, setupDatabase } = require('./database');
 const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
 const { refreshCalendar, refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
 const { refreshGuide } = require('./guideManager');
+const { refreshCommandes } = require('./commandesManager');
 const {
   setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
-  capitaineCommand, setdateCommand,
+  capitaineCommand, setdateCommand, resultatCommand, correctResultCommand,
   handleSetup, handleRefresh, handleTicket, handleLookScrim,
-  handleCapitaine, handleSetdate, handleAutocomplete,
+  handleCapitaine, handleSetdate, handleResultat, handleCorrectResult, handleAutocomplete,
 } = require('./commands');
 const { createTicket, closeTicket, handleTicketOpen } = require('./ticketManager');
 const { handleReglementNav } = require('./reglementManager');
+const { handleReactionAdd } = require('./sideReactionManager');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
+  ],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User],
 });
 
 async function registerCommands(clientId) {
@@ -29,6 +36,8 @@ async function registerCommands(clientId) {
     lookScrimCommand.toJSON(),
     capitaineCommand.toJSON(),
     setdateCommand.toJSON(),
+    resultatCommand.toJSON(),
+    correctResultCommand.toJSON(),
   ];
 
   try {
@@ -63,6 +72,7 @@ client.once('ready', async () => {
   await refreshAllTeamChannels(client);
   await refreshListing(client);
   await refreshGuide(client);
+  await refreshCommandes(client);
 
   // Check for new matches every 2 minutes
   cron.schedule('*/2 * * * *', () => {
@@ -75,6 +85,7 @@ client.once('ready', async () => {
     refreshAllTeamChannels(client);
     refreshListing(client);
     refreshGuide(client);
+    refreshCommandes(client);
   });
 
   console.log('[Bot] Tâches planifiées actives. Bot prêt !');
@@ -100,6 +111,8 @@ client.on('interactionCreate', async (interaction) => {
       interaction.commandName === 'look-scrim' ? handleLookScrim(interaction) :
       interaction.commandName === 'capitaine'  ? handleCapitaine(interaction) :
       interaction.commandName === 'setdate'    ? handleSetdate(interaction, client) :
+      interaction.commandName === 'resultat'        ? handleResultat(interaction, client) :
+      interaction.commandName === 'correct-result'  ? handleCorrectResult(interaction, client) :
       null;
   } else if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_open') {
     handler = createTicket(interaction, interaction.values[0]);
@@ -121,6 +134,12 @@ client.on('interactionCreate', async (interaction) => {
       reply.catch(() => {});
     });
   }
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+  await handleReactionAdd(reaction, user, client).catch((err) => {
+    console.error('[Bot] Erreur réaction:', err);
+  });
 });
 
 client.on('error', (err) => {

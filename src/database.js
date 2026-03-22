@@ -38,6 +38,25 @@ async function setupDatabase() {
     // Column may already be nullable — ignore
   });
 
+  // Add side choice columns for side-pick voting
+  await pool.execute(`
+    ALTER TABLE discord_matches
+      ADD COLUMN side_picker VARCHAR(100) NULL,
+      ADD COLUMN side_picked ENUM('blue','red') NULL
+  `).catch(() => {
+    // Columns may already exist — ignore
+  });
+
+  // Add result columns
+  await pool.execute(`
+    ALTER TABLE discord_matches
+      ADD COLUMN result_winner        VARCHAR(100) NULL,
+      ADD COLUMN result_score_winner  TINYINT      NULL,
+      ADD COLUMN result_score_loser   TINYINT      NULL
+  `).catch(() => {
+    // Columns may already exist — ignore
+  });
+
   console.log('[DB] Structure de la base de données vérifiée.');
 }
 
@@ -177,12 +196,27 @@ async function getCapitaineTeam(discordUserId) {
 
 async function getAllCapitaines() {
   const [rows] = await pool.execute(
-    `SELECT cd.*, t.name AS team_name
+    `SELECT cd.*, t.name AS team_name,
+            COALESCE(pe.main_points, 0) AS main_points
      FROM capitaines_discord cd
      JOIN teams t ON t.id = cd.team_id
+     LEFT JOIN points_equipes pe ON pe.team_id = cd.team_id
      ORDER BY t.name ASC`
   );
   return rows;
+}
+
+async function getTeamPointsByNames(team1Name, team2Name) {
+  const [rows] = await pool.execute(
+    `SELECT t.name, COALESCE(pe.main_points, 0) AS main_points
+     FROM teams t
+     LEFT JOIN points_equipes pe ON pe.team_id = t.id
+     WHERE t.name IN (?, ?)`,
+    [team1Name, team2Name]
+  );
+  const map = {};
+  for (const row of rows) map[row.name] = row.main_points;
+  return map;
 }
 
 /**
@@ -201,10 +235,86 @@ async function isMatchForCapitaine(matchId, discordUserId) {
   return rows.length > 0;
 }
 
+async function setSideChoice(matchId, pickerTeam, side) {
+  await pool.execute(
+    `UPDATE discord_matches SET side_picker = ?, side_picked = ? WHERE id = ? AND side_picker IS NULL`,
+    [pickerTeam, side, matchId]
+  );
+}
+
+async function setMatchResult(matchId, winner, scoreWinner, scoreLoser) {
+  const [result] = await pool.execute(
+    `UPDATE discord_matches dm
+     JOIN teams t1 ON t1.name COLLATE utf8mb4_unicode_ci = dm.team1_name
+     JOIN teams t2 ON t2.name COLLATE utf8mb4_unicode_ci = dm.team2_name
+     SET dm.result_winner        = ?,
+         dm.result_score_winner  = ?,
+         dm.result_score_loser   = ?,
+         dm.status               = 'COMPLETED',
+         dm.score_team1 = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.score_team2 = CASE WHEN ? = dm.team2_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.winner_id   = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN t1.id ELSE t2.id END
+     WHERE dm.id = ? AND dm.status = 'PENDING'`,
+    [
+      winner, scoreWinner, scoreLoser,
+      winner, scoreWinner, scoreLoser,   // score_team1
+      winner, scoreWinner, scoreLoser,   // score_team2
+      winner,                            // winner_id
+      matchId,
+    ]
+  );
+  return result.affectedRows > 0;
+}
+
+async function correctMatchResult(matchId, winner, scoreWinner, scoreLoser) {
+  const [result] = await pool.execute(
+    `UPDATE discord_matches dm
+     JOIN teams t1 ON t1.name COLLATE utf8mb4_unicode_ci = dm.team1_name
+     JOIN teams t2 ON t2.name COLLATE utf8mb4_unicode_ci = dm.team2_name
+     SET dm.result_winner        = ?,
+         dm.result_score_winner  = ?,
+         dm.result_score_loser   = ?,
+         dm.status               = 'COMPLETED',
+         dm.score_team1 = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.score_team2 = CASE WHEN ? = dm.team2_name COLLATE utf8mb4_unicode_ci THEN ? ELSE ? END,
+         dm.winner_id   = CASE WHEN ? = dm.team1_name COLLATE utf8mb4_unicode_ci THEN t1.id ELSE t2.id END
+     WHERE dm.id = ?`,
+    [
+      winner, scoreWinner, scoreLoser,
+      winner, scoreWinner, scoreLoser,   // score_team1
+      winner, scoreWinner, scoreLoser,   // score_team2
+      winner,                            // winner_id
+      matchId,
+    ]
+  );
+  return result.affectedRows > 0;
+}
+
+async function resetDatabase() {
+  // Clear all captain assignments
+  await pool.execute(`TRUNCATE TABLE capitaines_discord`);
+
+  // Reset all bot-managed columns on matches back to their initial state
+  await pool.execute(
+    `UPDATE discord_matches
+     SET match_date           = NULL,
+         status               = 'PENDING',
+         side_picker          = NULL,
+         side_picked          = NULL,
+         result_winner        = NULL,
+         result_score_winner  = NULL,
+         result_score_loser   = NULL,
+         score_team1          = NULL,
+         score_team2          = NULL,
+         winner_id            = NULL`
+  );
+}
+
 module.exports = {
   pool,
   testConnection,
   setupDatabase,
+  resetDatabase,
   getAllPendingMatches,
   getUpcomingMatchesInDays,
   getUpcomingMatches,
@@ -218,5 +328,9 @@ module.exports = {
   removeCapitaine,
   getCapitaineTeam,
   getAllCapitaines,
+  getTeamPointsByNames,
+  setSideChoice,
+  setMatchResult,
+  correctMatchResult,
   isMatchForCapitaine,
 };

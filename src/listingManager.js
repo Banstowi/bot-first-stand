@@ -23,20 +23,25 @@ async function refreshListing(client) {
     for (const c of capitaines) {
       const user = await client.users.fetch(c.discord_user_id).catch(() => null);
       const name = user ? (user.globalName || user.username) : `<@${c.discord_user_id}>`;
-      rows.push({ team: c.team_name, captain: name });
+      rows.push({ team: c.team_name, points: String(c.main_points ?? 0), captain: name });
     }
 
     // Compute column widths
     const colTeam = Math.max('Équipe'.length, ...rows.map((r) => r.team.length));
+    const colPts  = Math.max('Pts'.length, ...rows.map((r) => r.points.length));
     const colCap  = Math.max('Capitaine'.length, ...rows.map((r) => r.captain.length));
 
-    const pad = (s, n) => s + ' '.repeat(n - s.length);
-    const divider = '─'.repeat(colTeam + 1) + '┼' + '─'.repeat(colCap + 2);
+    const pad  = (s, n) => s + ' '.repeat(n - s.length);
+    const rpad = (s, n) => ' '.repeat(n - s.length) + s;
+    const divider =
+      '─'.repeat(colTeam + 1) + '┼' +
+      '─'.repeat(colPts + 2)  + '┼' +
+      '─'.repeat(colCap + 2);
 
     const lines = [
-      `${pad('Équipe', colTeam)} │ Capitaine`,
+      `${pad('Équipe', colTeam)} │ ${pad('Pts', colPts)} │ Capitaine`,
       divider,
-      ...rows.map((r) => `${pad(r.team, colTeam)} │ ${r.captain}`),
+      ...rows.map((r) => `${pad(r.team, colTeam)} │ ${rpad(r.points, colPts)} │ ${r.captain}`),
     ];
 
     description = '```\n' + lines.join('\n') + '\n```';

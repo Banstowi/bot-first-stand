@@ -18,6 +18,8 @@ const DEFAULT_STATE = {
   reglementMessageId: null,       // Message ID of the règlement embed
   ticketCategoryId: null,
   resultsChannelId: null,           // Channel where result cards are posted
+  commandesChannelId: null,         // Channel showing match commands + side-pick explanation
+  commandesMessageId: null,         // Message ID of the commandes embed
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
 
@@ -255,6 +257,26 @@ function setResultsChannelId(id) {
   save(s);
 }
 
+function getCommandesChannelId() {
+  return load().commandesChannelId || null;
+}
+
+function setCommandesChannelId(id) {
+  const s = load();
+  s.commandesChannelId = id;
+  save(s);
+}
+
+function getCommandesMessageId() {
+  return load().commandesMessageId || null;
+}
+
+function setCommandesMessageId(id) {
+  const s = load();
+  s.commandesMessageId = id;
+  save(s);
+}
+
 // ─── Announcement deletions ───────────────────────────────────────────────────
 
 function addPendingAnnouncementDeletion(messageId, channelId, deleteAt) {
@@ -316,6 +338,10 @@ module.exports = {
   setTicketCategoryId,
   getResultsChannelId,
   setResultsChannelId,
+  getCommandesChannelId,
+  setCommandesChannelId,
+  getCommandesMessageId,
+  setCommandesMessageId,
   // Deletions
   addPendingAnnouncementDeletion,
   removePendingAnnouncementDeletion,

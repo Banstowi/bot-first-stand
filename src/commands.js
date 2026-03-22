@@ -20,6 +20,7 @@ const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./dat
 const { handleTicketOpen, postTicketPanel } = require('./ticketManager');
 const { postReglement } = require('./reglementManager');
 const { postResult, postCorrectedResult } = require('./resultManager');
+const { refreshCommandes } = require('./commandesManager');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -105,6 +106,14 @@ const setupCommand = new SlashCommandBuilder()
       .setDescription('Canal où les cartes de résultats seront postées après chaque match')
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription('Canal des résultats').setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('commandes')
+      .setDescription('Canal affichant les commandes de match et le système de side-pick')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal des commandes capitaines').setRequired(true)
       )
   );
 
@@ -271,6 +280,11 @@ async function handleSetup(interaction, client) {
           name: '🏆 Canal résultats',
           value: state.getResultsChannelId() ? `<#${state.getResultsChannelId()}>` : '❌ Non configuré',
           inline: true,
+        },
+        {
+          name: '📋 Canal commandes',
+          value: state.getCommandesChannelId() ? `<#${state.getCommandesChannelId()}>` : '❌ Non configuré',
+          inline: true,
         }
       );
     return interaction.reply({ embeds: [embed], ephemeral: true });
@@ -401,6 +415,20 @@ async function handleSetup(interaction, client) {
           .setDescription(`✅ Canal résultats configuré sur <#${channel.id}>\nLes cartes de résultats y seront postées après chaque match via \`/resultat\`.`),
       ],
       ephemeral: true,
+    });
+  }
+
+  if (sub === 'commandes') {
+    state.setCommandesChannelId(channel.id);
+    state.setCommandesMessageId(null);
+    await interaction.deferReply({ ephemeral: true });
+    await refreshCommandes(client);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x00cc66)
+          .setDescription(`✅ Canal commandes configuré sur <#${channel.id}>\nLes commandes de match et le guide du side-pick y sont affichés.`),
+      ],
     });
   }
 }

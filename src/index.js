@@ -7,6 +7,7 @@ const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnn
 const { refreshCalendar, refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
 const { refreshGuide } = require('./guideManager');
+const { refreshCommandes } = require('./commandesManager');
 const {
   setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
   capitaineCommand, setdateCommand, resultatCommand, correctResultCommand,
@@ -71,6 +72,7 @@ client.once('ready', async () => {
   await refreshAllTeamChannels(client);
   await refreshListing(client);
   await refreshGuide(client);
+  await refreshCommandes(client);
 
   // Check for new matches every 2 minutes
   cron.schedule('*/2 * * * *', () => {
@@ -83,6 +85,7 @@ client.once('ready', async () => {
     refreshAllTeamChannels(client);
     refreshListing(client);
     refreshGuide(client);
+    refreshCommandes(client);
   });
 
   console.log('[Bot] Tâches planifiées actives. Bot prêt !');

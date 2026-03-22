@@ -43,6 +43,8 @@ const SECTIONS = [
       '**6.** Le **rang moyen de l\'équipe** ne doit pas dépasser **Platine 1**. Les organisateurs se réservent le droit de refuser une inscription si le niveau estimé dépasse cette limite.',
       '**7.** Les joueurs doivent déclarer **tous leurs comptes** League of Legends (comptes principaux et smurfs) aux organisateurs lors de l\'inscription.',
       '**8.** Toute utilisation d\'un compte non renseigné ne sera pas autorisée.',
+      '**9.** Le classement (ELO/LP) pris en compte est celui du joueur **au moment de l\'inscription**. Une évolution du classement après l\'inscription n\'entraîne pas automatiquement de sanction. Toutefois, si une progression anormalement élevée est constatée (ex : gain supérieur à **+600 LP**), l\'organisation se réserve le droit d\'examiner la situation et de prendre une décision appropriée.',
+      '**10.** Le **roleswap avant l\'inscription** est autorisé. En revanche, aucun titulaire ne peut changer de rôle en cours de tournoi. Seuls les subs peuvent jouer sur n\'importe quel poste.',
     ].join('\n'),
   },
   {

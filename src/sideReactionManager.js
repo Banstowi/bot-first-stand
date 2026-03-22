@@ -35,16 +35,15 @@ async function handleReactionAdd(reaction, user, client) {
 
   const emoji = reaction.emoji.name;
 
-  // Only 🔵 and 🔴 are valid; remove anything else immediately
-  if (emoji !== BLUE_EMOJI && emoji !== RED_EMOJI) {
-    await reaction.users.remove(user.id).catch(() => {});
-    return;
-  }
-
   // Is this message a team channel card?
   const found = findTeamMatchForMessage(reaction.message.id);
   if (!found) {
-    // Not a tracked team card — remove unexpected reaction
+    // Not a tracked team card — ignore completely
+    return;
+  }
+
+  // Only 🔵 and 🔴 are valid on match cards; remove anything else
+  if (emoji !== BLUE_EMOJI && emoji !== RED_EMOJI) {
     await reaction.users.remove(user.id).catch(() => {});
     return;
   }

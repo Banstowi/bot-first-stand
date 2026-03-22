@@ -9,9 +9,9 @@ const { refreshListing } = require('./listingManager');
 const { refreshGuide } = require('./guideManager');
 const {
   setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
-  capitaineCommand, setdateCommand, resultatCommand,
+  capitaineCommand, setdateCommand, resultatCommand, correctResultCommand,
   handleSetup, handleRefresh, handleTicket, handleLookScrim,
-  handleCapitaine, handleSetdate, handleResultat, handleAutocomplete,
+  handleCapitaine, handleSetdate, handleResultat, handleCorrectResult, handleAutocomplete,
 } = require('./commands');
 const { createTicket, closeTicket, handleTicketOpen } = require('./ticketManager');
 const { handleReglementNav } = require('./reglementManager');
@@ -36,6 +36,7 @@ async function registerCommands(clientId) {
     capitaineCommand.toJSON(),
     setdateCommand.toJSON(),
     resultatCommand.toJSON(),
+    correctResultCommand.toJSON(),
   ];
 
   try {
@@ -107,7 +108,8 @@ client.on('interactionCreate', async (interaction) => {
       interaction.commandName === 'look-scrim' ? handleLookScrim(interaction) :
       interaction.commandName === 'capitaine'  ? handleCapitaine(interaction) :
       interaction.commandName === 'setdate'    ? handleSetdate(interaction, client) :
-      interaction.commandName === 'resultat'   ? handleResultat(interaction, client) :
+      interaction.commandName === 'resultat'        ? handleResultat(interaction, client) :
+      interaction.commandName === 'correct-result'  ? handleCorrectResult(interaction, client) :
       null;
   } else if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_open') {
     handler = createTicket(interaction, interaction.values[0]);

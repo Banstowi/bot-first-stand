@@ -253,6 +253,17 @@ async function setMatchResult(matchId, winner, scoreWinner, scoreLoser) {
   return result.affectedRows > 0;
 }
 
+async function correctMatchResult(matchId, winner, scoreWinner, scoreLoser) {
+  const [result] = await pool.execute(
+    `UPDATE discord_matches
+     SET result_winner = ?, result_score_winner = ?, result_score_loser = ?,
+         status = 'COMPLETED'
+     WHERE id = ?`,
+    [winner, scoreWinner, scoreLoser, matchId]
+  );
+  return result.affectedRows > 0;
+}
+
 module.exports = {
   pool,
   testConnection,
@@ -273,5 +284,6 @@ module.exports = {
   getTeamPointsByNames,
   setSideChoice,
   setMatchResult,
+  correctMatchResult,
   isMatchForCapitaine,
 };

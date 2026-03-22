@@ -11,6 +11,7 @@ const {
   setMatchDate,
   getMatchById,
   setMatchResult,
+  correctMatchResult,
 } = require('./database');
 const { refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
@@ -18,7 +19,7 @@ const { refreshGuide } = require('./guideManager');
 const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./database');
 const { handleTicketOpen, postTicketPanel } = require('./ticketManager');
 const { postReglement } = require('./reglementManager');
-const { postResult } = require('./resultManager');
+const { postResult, postCorrectedResult } = require('./resultManager');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -115,6 +116,31 @@ const resultatCommand = new SlashCommandBuilder()
   )
   .addStringOption((opt) =>
     opt.setName('winner').setDescription('Équipe gagnante').setRequired(true).setAutocomplete(true)
+  )
+  .addIntegerOption((opt) =>
+    opt
+      .setName('nexus_gagnant')
+      .setDescription('Nombre de parties gagnées par le vainqueur')
+      .setRequired(true)
+      .addChoices({ name: '2', value: 2 }, { name: '3', value: 3 })
+  )
+  .addIntegerOption((opt) =>
+    opt
+      .setName('nexus_perdant')
+      .setDescription('Nombre de parties gagnées par le perdant')
+      .setRequired(true)
+      .addChoices({ name: '0', value: 0 }, { name: '1', value: 1 }, { name: '2', value: 2 })
+  );
+
+const correctResultCommand = new SlashCommandBuilder()
+  .setName('correct-result')
+  .setDescription('Corriger le résultat d\'un match terminé (administrateurs uniquement)')
+  .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+  .addIntegerOption((opt) =>
+    opt.setName('match_id').setDescription('ID du match à corriger').setRequired(true)
+  )
+  .addStringOption((opt) =>
+    opt.setName('winner').setDescription('Équipe gagnante (corrigée)').setRequired(true).setAutocomplete(true)
   )
   .addIntegerOption((opt) =>
     opt
@@ -725,6 +751,67 @@ async function handleResultat(interaction, client) {
   });
 }
 
+async function handleCorrectResult(interaction, client) {
+  const matchId     = interaction.options.getInteger('match_id');
+  const winner      = interaction.options.getString('winner');
+  const scoreWinner = interaction.options.getInteger('nexus_gagnant');
+  const scoreLoser  = interaction.options.getInteger('nexus_perdant');
+
+  if (scoreLoser >= scoreWinner) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc4400)
+          .setDescription('❌ Le nombre de nexus du perdant doit être strictement inférieur à celui du gagnant.'),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  const match = await getMatchById(matchId);
+  if (!match) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setDescription(`❌ Aucun match trouvé avec l'ID \`#${matchId}\`.`),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  if (winner !== match.team1_name && winner !== match.team2_name) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc4400)
+          .setDescription(`❌ Le vainqueur doit être **${match.team1_name}** ou **${match.team2_name}**.`),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  await interaction.deferReply({ ephemeral: true });
+
+  await correctMatchResult(matchId, winner, scoreWinner, scoreLoser);
+  const updatedMatch = await getMatchById(matchId);
+
+  await postCorrectedResult(client, updatedMatch);
+
+  const loser = winner === match.team1_name ? match.team2_name : match.team1_name;
+  return interaction.editReply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0xff8800)
+        .setTitle('✅ Résultat corrigé')
+        .setDescription(
+          `Match \`#${matchId}\` — **${match.team1_name}** vs **${match.team2_name}**\n\n` +
+          `🏆 **${winner}** ${scoreWinner} – ${scoreLoser} **${loser}**\n\nLa carte de correction a été postée dans le canal résultats.`
+        ),
+    ],
+  });
+}
+
 async function handleAutocomplete(interaction) {
   const { commandName } = interaction;
   const sub = interaction.options.getSubcommand(false);
@@ -750,8 +837,8 @@ async function handleAutocomplete(interaction) {
     return interaction.respond(choices);
   }
 
-  // /resultat winner → the two teams of the given match
-  if (commandName === 'resultat') {
+  // /resultat winner  and  /correct-result winner → the two teams of the given match
+  if (commandName === 'resultat' || commandName === 'correct-result') {
     const matchId = interaction.options.getInteger('match_id');
     if (!matchId) return interaction.respond([]);
     const match = await getMatchById(matchId).catch(() => null);
@@ -790,6 +877,7 @@ module.exports = {
   capitaineCommand,
   setdateCommand,
   resultatCommand,
+  correctResultCommand,
   handleSetup,
   handleRefresh,
   handleTicket,
@@ -797,5 +885,6 @@ module.exports = {
   handleCapitaine,
   handleSetdate,
   handleResultat,
+  handleCorrectResult,
   handleAutocomplete,
 };

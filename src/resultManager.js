@@ -48,4 +48,49 @@ async function postResult(client, match) {
   return sent;
 }
 
-module.exports = { postResult };
+/**
+ * Posts a correction card in the results channel (same card, orange embed + correction note).
+ */
+async function postCorrectedResult(client, match) {
+  const channelId = state.getResultsChannelId();
+  if (!channelId) {
+    console.warn('[Results] Canal résultats non configuré.');
+    return null;
+  }
+
+  const channel = await client.channels.fetch(channelId).catch(() => null);
+  if (!channel) {
+    console.error(`[Results] Canal résultats introuvable: ${channelId}`);
+    return null;
+  }
+
+  const isTeam1Winner = match.result_winner === match.team1_name;
+  const score1 = isTeam1Winner ? match.result_score_winner : match.result_score_loser;
+  const score2 = isTeam1Winner ? match.result_score_loser  : match.result_score_winner;
+
+  const cardBuffer = await generateResultCard(match);
+  const filename = `result_match_${match.id}_corrected.png`;
+  const attachment = new AttachmentBuilder(cardBuffer, { name: filename });
+
+  const embed = new EmbedBuilder()
+    .setColor(0xff8800)
+    .setTitle(`⚠️ Résultat corrigé — ${match.result_winner} vainqueur`)
+    .setDescription(
+      match.round_name
+        ? `**${match.round_name}** — ${match.tournament_name || ''}`
+        : match.tournament_name || ''
+    )
+    .addFields(
+      { name: '📊 Score corrigé', value: `**${match.team1_name}** ${score1} – ${score2} **${match.team2_name}**`, inline: false },
+      { name: '🏆 Vainqueur',     value: match.result_winner, inline: true },
+    )
+    .setImage(`attachment://${filename}`)
+    .setFooter({ text: `Match #${match.id} · Correction administrative` })
+    .setTimestamp();
+
+  const sent = await channel.send({ embeds: [embed], files: [attachment] });
+  console.log(`[Results] Résultat corrigé posté pour match #${match.id}`);
+  return sent;
+}
+
+module.exports = { postResult, postCorrectedResult };

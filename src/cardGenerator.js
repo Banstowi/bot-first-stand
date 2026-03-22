@@ -85,7 +85,8 @@ const TEAM1_CX    = 170;
 const TEAM2_CX    = W - 170;
 const CENTER_CX   = W / 2;
 const NAME_Y      = LOGO_CY + LOGO_R + 32;    // = 276
-const SEP_Y       = NAME_Y + 22;              // = 298
+const POINTS_Y    = NAME_Y + 26;              // = 302  (points line under team name)
+const SEP_Y       = POINTS_Y + 18;            // = 320
 const FOOTER_CY   = SEP_Y + (H - SEP_Y) / 2; // vertically centered in footer
 
 // ─── main export ─────────────────────────────────────────────────────────────
@@ -170,6 +171,20 @@ async function generateMatchCard(match) {
 
   // Team 2
   ctx.fillText(truncate(match.team2_name, 18), TEAM2_CX, NAME_Y);
+
+  // ── Points ───────────────────────────────────────────────────────────────
+  if (match.team1_points != null || match.team2_points != null) {
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillStyle = '#f0c040';
+    if (match.team1_points != null) {
+      ctx.fillText(`${match.team1_points} pts`, TEAM1_CX, POINTS_Y);
+    }
+    if (match.team2_points != null) {
+      ctx.fillText(`${match.team2_points} pts`, TEAM2_CX, POINTS_Y);
+    }
+  }
 
   // ── Separator ────────────────────────────────────────────────────────────
   ctx.strokeStyle = '#2a2a55';

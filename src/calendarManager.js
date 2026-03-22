@@ -1,5 +1,5 @@
 const { AttachmentBuilder, EmbedBuilder } = require('discord.js');
-const { getUpcomingMatches, getMatchesByTeamId } = require('./database');
+const { getUpcomingMatches, getMatchesByTeamId, getTeamPointsByNames } = require('./database');
 const { generateMatchCard } = require('./cardGenerator');
 const state = require('./state');
 
@@ -38,6 +38,14 @@ function buildMatchEmbed(match) {
   if (match.opposing_captain_name) embed.addFields({ name: '👑 Capitaine adverse', value: match.opposing_captain_name, inline: true });
 
   return embed;
+}
+
+async function enrichMatchesWithPoints(matches) {
+  for (const match of matches) {
+    const pointsMap = await getTeamPointsByNames(match.team1_name, match.team2_name);
+    match.team1_points = pointsMap[match.team1_name] ?? null;
+    match.team2_points = pointsMap[match.team2_name] ?? null;
+  }
 }
 
 async function buildMatchMessage(match) {
@@ -89,7 +97,13 @@ function filterTopNPerTeam(matches, n) {
  * Used to detect whether an imageOnly card needs to be regenerated.
  */
 function matchFp(match) {
-  return String(match.match_date || '') + '|' + String(match.score1 ?? '') + '|' + String(match.score2 ?? '');
+  return (
+    String(match.match_date || '') + '|' +
+    String(match.score1 ?? '') + '|' +
+    String(match.score2 ?? '') + '|' +
+    String(match.team1_points ?? '') + '|' +
+    String(match.team2_points ?? '')
+  );
 }
 
 /**
@@ -226,6 +240,7 @@ async function refreshCalendar(client) {
   try {
     const allMatches = await getUpcomingMatches();
     const matches = filterTopNPerTeam(allMatches, 2);
+    await enrichMatchesWithPoints(matches);
     await syncMatchesToChannel(channel, matches, {
       getMsg:    (id) => state.getCalendarMessageId(id),
       getFp:     (id) => state.getCalendarMessageFp(id),
@@ -259,6 +274,7 @@ async function refreshTeamChannel(client, teamId, channelId) {
       }
     }
 
+    await enrichMatchesWithPoints(matches);
     await syncMatchesToChannel(channel, matches, {
       getMsg:    (id) => state.getTeamMessageId(teamId, id),
       getFp:     (id) => state.getTeamMessageFp(teamId, id),

@@ -177,12 +177,27 @@ async function getCapitaineTeam(discordUserId) {
 
 async function getAllCapitaines() {
   const [rows] = await pool.execute(
-    `SELECT cd.*, t.name AS team_name
+    `SELECT cd.*, t.name AS team_name,
+            COALESCE(pe.main_points, 0) AS main_points
      FROM capitaines_discord cd
      JOIN teams t ON t.id = cd.team_id
+     LEFT JOIN points_equipes pe ON pe.team_id = cd.team_id
      ORDER BY t.name ASC`
   );
   return rows;
+}
+
+async function getTeamPointsByNames(team1Name, team2Name) {
+  const [rows] = await pool.execute(
+    `SELECT t.name, COALESCE(pe.main_points, 0) AS main_points
+     FROM teams t
+     LEFT JOIN points_equipes pe ON pe.team_id = t.id
+     WHERE t.name IN (?, ?)`,
+    [team1Name, team2Name]
+  );
+  const map = {};
+  for (const row of rows) map[row.name] = row.main_points;
+  return map;
 }
 
 /**
@@ -218,5 +233,6 @@ module.exports = {
   removeCapitaine,
   getCapitaineTeam,
   getAllCapitaines,
+  getTeamPointsByNames,
   isMatchForCapitaine,
 };

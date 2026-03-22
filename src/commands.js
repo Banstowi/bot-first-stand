@@ -17,6 +17,7 @@ const {
 const { refreshAllTeamChannels } = require('./calendarManager');
 const { refreshListing } = require('./listingManager');
 const { refreshGuide } = require('./guideManager');
+const { refreshAdminCommandes } = require('./adminCommandesManager');
 const { getAllTeams, getUnassignedTeams, getCapitaineByTeamId } = require('./database');
 const { handleTicketOpen, postTicketPanel } = require('./ticketManager');
 const { postReglement } = require('./reglementManager');
@@ -126,6 +127,14 @@ const setupCommand = new SlashCommandBuilder()
           .setName('confirmation')
           .setDescription('Tapez exactement "CONFIRMER" pour valider la réinitialisation')
           .setRequired(true)
+      )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('admin-commande')
+      .setDescription('Canal affichant le guide des commandes admin')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal du guide admin').setRequired(true)
       )
   );
 
@@ -296,6 +305,11 @@ async function handleSetup(interaction, client) {
         {
           name: '📋 Canal commandes',
           value: state.getCommandesChannelId() ? `<#${state.getCommandesChannelId()}>` : '❌ Non configuré',
+          inline: true,
+        },
+        {
+          name: '🛠️ Canal admin',
+          value: state.getAdminCommandesChannelId() ? `<#${state.getAdminCommandesChannelId()}>` : '❌ Non configuré',
           inline: true,
         }
       );
@@ -474,6 +488,20 @@ async function handleSetup(interaction, client) {
           )
           .setFooter({ text: `Réinitialisé par ${interaction.user.tag}` })
           .setTimestamp(),
+      ],
+    });
+  }
+
+  if (sub === 'admin-commande') {
+    state.setAdminCommandesChannelId(channel.id);
+    state.setAdminCommandesMessageId(null);
+    await interaction.deferReply({ ephemeral: true });
+    await refreshAdminCommandes(client);
+    return interaction.editReply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc4400)
+          .setDescription(`✅ Canal guide admin configuré sur <#${channel.id}>\nLes commandes admin y sont affichées et mises à jour automatiquement.`),
       ],
     });
   }

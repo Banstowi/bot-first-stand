@@ -17,6 +17,15 @@ function buildGuideEmbeds() {
         ].join('\n'),
       },
       {
+        name: '🏆 Soumettre un résultat — `/resultat`',
+        value: [
+          '```/resultat match_id:<id> winner:<équipe> nexus_gagnant:<2|3> nexus_perdant:<0|1|2>```',
+          "Enregistrez le résultat d'un de vos matchs une fois terminé.",
+          '`nexus_gagnant` = parties gagnées par le vainqueur · `nexus_perdant` = parties gagnées par le perdant.',
+          '> **Exemple :** `/resultat match_id:42 winner:MonEquipe nexus_gagnant:2 nexus_perdant:1`',
+        ].join('\n'),
+      },
+      {
         name: '🎮 Rechercher un scrim — `/look-scrim`',
         value: [
           '```/look-scrim equipe:<rôle> date:<JJ/MM> heure:<HH> bo:<format>```',

@@ -20,6 +20,8 @@ const DEFAULT_STATE = {
   resultsChannelId: null,           // Channel where result cards are posted
   commandesChannelId: null,         // Channel showing match commands + side-pick explanation
   commandesMessageId: null,         // Message ID of the commandes embed
+  adminCommandesChannelId: null,    // Channel showing admin commands guide
+  adminCommandesMessageId: null,    // Message ID of the admin commandes embed
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
 
@@ -277,6 +279,26 @@ function setCommandesMessageId(id) {
   save(s);
 }
 
+function getAdminCommandesChannelId() {
+  return load().adminCommandesChannelId || null;
+}
+
+function setAdminCommandesChannelId(id) {
+  const s = load();
+  s.adminCommandesChannelId = id;
+  save(s);
+}
+
+function getAdminCommandesMessageId() {
+  return load().adminCommandesMessageId || null;
+}
+
+function setAdminCommandesMessageId(id) {
+  const s = load();
+  s.adminCommandesMessageId = id;
+  save(s);
+}
+
 // ─── Announcement deletions ───────────────────────────────────────────────────
 
 function addPendingAnnouncementDeletion(messageId, channelId, deleteAt) {
@@ -342,6 +364,10 @@ module.exports = {
   setCommandesChannelId,
   getCommandesMessageId,
   setCommandesMessageId,
+  getAdminCommandesChannelId,
+  setAdminCommandesChannelId,
+  getAdminCommandesMessageId,
+  setAdminCommandesMessageId,
   // Deletions
   addPendingAnnouncementDeletion,
   removePendingAnnouncementDeletion,

@@ -60,6 +60,7 @@ const SECTIONS = [
       '• Les **2 meilleures équipes** de chaque groupe se qualifient pour les quarts de finale.',
       '• Les positions **3 à 6** seront en 8èmes de finale.',
       '• Les équipes **7 et 8** de chaque poule sont éliminées.',
+      '• Au total, **7 matchs** devront être effectués durant la phase de poules.',
       '',
       '**🏆 Phases finales** *(élimination directe)*',
       '• 8èmes de finale : **BO3**',

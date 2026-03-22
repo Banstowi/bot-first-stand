@@ -45,6 +45,16 @@ async function enrichMatchesWithPoints(matches) {
     const pointsMap = await getTeamPointsByNames(match.team1_name, match.team2_name);
     match.team1_points = pointsMap[match.team1_name] ?? null;
     match.team2_points = pointsMap[match.team2_name] ?? null;
+
+    // Derive side assignments from stored vote
+    if (match.side_picker && match.side_picked) {
+      const pickerIs1 = match.side_picker === match.team1_name;
+      match.team1_side = pickerIs1 ? match.side_picked : (match.side_picked === 'blue' ? 'red' : 'blue');
+      match.team2_side = pickerIs1 ? (match.side_picked === 'blue' ? 'red' : 'blue') : match.side_picked;
+    } else {
+      match.team1_side = null;
+      match.team2_side = null;
+    }
   }
 }
 
@@ -102,7 +112,9 @@ function matchFp(match) {
     String(match.score1 ?? '') + '|' +
     String(match.score2 ?? '') + '|' +
     String(match.team1_points ?? '') + '|' +
-    String(match.team2_points ?? '')
+    String(match.team2_points ?? '') + '|' +
+    String(match.side_picker ?? '') + '|' +
+    String(match.side_picked ?? '')
   );
 }
 
@@ -125,7 +137,7 @@ function matchFp(match) {
  *                  keeps it otherwise; replaces any old embed-style message.
  */
 async function syncMatchesToChannel(channel, matches, { getMsg, getFp, setMsg, removeMsg, getAllMsgs }, label, options = {}) {
-  const { imageOnly = false, limit = null } = options;
+  const { imageOnly = false, limit = null, onNewCard = null } = options;
 
   // Apply limit
   const displayMatches = limit ? matches.slice(0, limit) : matches;
@@ -197,6 +209,7 @@ async function syncMatchesToChannel(channel, matches, { getMsg, getFp, setMsg, r
         const { attachment } = await buildMatchMessage(match);
         const sent = await channel.send({ files: [attachment] });
         setMsg(matchIdStr, sent.id, matchFp(match));
+        if (onNewCard) await onNewCard(sent, match).catch(() => {});
       } else {
         const { embed, attachment } = await buildMatchMessage(match);
         const sent = await channel.send({ embeds: [embed], files: [attachment] });
@@ -281,7 +294,17 @@ async function refreshTeamChannel(client, teamId, channelId) {
       setMsg:    (id, msgId, fp) => state.setTeamMessageId(teamId, id, msgId, fp),
       removeMsg: (id) => state.removeTeamMessageId(teamId, id),
       getAllMsgs: () => state.getAllTeamMessageIds(teamId),
-    }, `TeamChannel#${teamId}`, { imageOnly: true, limit: 3 });
+    }, `TeamChannel#${teamId}`, {
+      imageOnly: true,
+      limit: 3,
+      onNewCard: async (msg, match) => {
+        // Only add reactions if the side hasn't been picked yet
+        if (!match.side_picker) {
+          await msg.react('🔵');
+          await msg.react('🔴');
+        }
+      },
+    });
   } catch (err) {
     console.error(`[TeamChannel] Erreur pour équipe #${teamId}:`, err);
   }

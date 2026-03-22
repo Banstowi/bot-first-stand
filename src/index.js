@@ -1,6 +1,6 @@
 require('dotenv').config();
 
-const { Client, GatewayIntentBits, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Partials, REST, Routes } = require('discord.js');
 const cron = require('node-cron');
 const { testConnection, setupDatabase } = require('./database');
 const { checkNewMatches, rescheduleAnnouncementDeletions } = require('./matchAnnouncer');
@@ -15,9 +15,15 @@ const {
 } = require('./commands');
 const { createTicket, closeTicket, handleTicketOpen } = require('./ticketManager');
 const { handleReglementNav } = require('./reglementManager');
+const { handleReactionAdd } = require('./sideReactionManager');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions,
+  ],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.User],
 });
 
 async function registerCommands(clientId) {
@@ -121,6 +127,12 @@ client.on('interactionCreate', async (interaction) => {
       reply.catch(() => {});
     });
   }
+});
+
+client.on('messageReactionAdd', async (reaction, user) => {
+  await handleReactionAdd(reaction, user, client).catch((err) => {
+    console.error('[Bot] Erreur réaction:', err);
+  });
 });
 
 client.on('error', (err) => {

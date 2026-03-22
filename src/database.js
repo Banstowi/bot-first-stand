@@ -38,6 +38,15 @@ async function setupDatabase() {
     // Column may already be nullable — ignore
   });
 
+  // Add side choice columns for side-pick voting
+  await pool.execute(`
+    ALTER TABLE discord_matches
+      ADD COLUMN side_picker VARCHAR(100) NULL,
+      ADD COLUMN side_picked ENUM('blue','red') NULL
+  `).catch(() => {
+    // Columns may already exist — ignore
+  });
+
   console.log('[DB] Structure de la base de données vérifiée.');
 }
 
@@ -216,6 +225,13 @@ async function isMatchForCapitaine(matchId, discordUserId) {
   return rows.length > 0;
 }
 
+async function setSideChoice(matchId, pickerTeam, side) {
+  await pool.execute(
+    `UPDATE discord_matches SET side_picker = ?, side_picked = ? WHERE id = ? AND side_picker IS NULL`,
+    [pickerTeam, side, matchId]
+  );
+}
+
 module.exports = {
   pool,
   testConnection,
@@ -234,5 +250,6 @@ module.exports = {
   getCapitaineTeam,
   getAllCapitaines,
   getTeamPointsByNames,
+  setSideChoice,
   isMatchForCapitaine,
 };

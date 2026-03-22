@@ -84,10 +84,11 @@ const LOGO_CY     = HEADER_H + 16 + LOGO_R;   // = 162
 const TEAM1_CX    = 170;
 const TEAM2_CX    = W - 170;
 const CENTER_CX   = W / 2;
-const NAME_Y      = LOGO_CY + LOGO_R + 32;    // = 276
-const POINTS_Y    = NAME_Y + 26;              // = 302  (points line under team name)
-const SEP_Y       = POINTS_Y + 18;            // = 320
-const FOOTER_CY   = SEP_Y + (H - SEP_Y) / 2; // vertically centered in footer
+const NAME_Y      = LOGO_CY + LOGO_R + 30;    // = 274
+const POINTS_Y    = NAME_Y + 24;              // = 298  (points line under team name)
+const SIDE_Y      = POINTS_Y + 22;            // = 320  (side line, shown only when voted)
+const SEP_Y       = SIDE_Y + 18;              // = 338
+const FOOTER_CY   = SEP_Y + (H - SEP_Y) / 2; // vertically centered in footer  ≈ 389
 
 // ─── main export ─────────────────────────────────────────────────────────────
 
@@ -173,16 +174,35 @@ async function generateMatchCard(match) {
   ctx.fillText(truncate(match.team2_name, 18), TEAM2_CX, NAME_Y);
 
   // ── Points ───────────────────────────────────────────────────────────────
-  if (match.team1_points != null || match.team2_points != null) {
+  ctx.textBaseline = 'alphabetic';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.fillStyle = '#f0c040';
+  if (match.team1_points != null) {
+    ctx.fillText(`${match.team1_points} pts`, TEAM1_CX, POINTS_Y);
+  }
+  if (match.team2_points != null) {
+    ctx.fillText(`${match.team2_points} pts`, TEAM2_CX, POINTS_Y);
+  }
+
+  // ── Side choice ───────────────────────────────────────────────────────────
+  if (match.team1_side || match.team2_side) {
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'center';
-    ctx.font = 'bold 15px sans-serif';
-    ctx.fillStyle = '#f0c040';
-    if (match.team1_points != null) {
-      ctx.fillText(`${match.team1_points} pts`, TEAM1_CX, POINTS_Y);
+    ctx.font = 'bold 14px sans-serif';
+    if (match.team1_side) {
+      ctx.fillStyle = match.team1_side === 'blue' ? '#4da6ff' : '#ff4d4d';
+      ctx.fillText(
+        match.team1_side === 'blue' ? '🔵 Blue side' : '🔴 Red side',
+        TEAM1_CX, SIDE_Y
+      );
     }
-    if (match.team2_points != null) {
-      ctx.fillText(`${match.team2_points} pts`, TEAM2_CX, POINTS_Y);
+    if (match.team2_side) {
+      ctx.fillStyle = match.team2_side === 'blue' ? '#4da6ff' : '#ff4d4d';
+      ctx.fillText(
+        match.team2_side === 'blue' ? '🔵 Blue side' : '🔴 Red side',
+        TEAM2_CX, SIDE_Y
+      );
     }
   }
 

@@ -136,6 +136,17 @@ const setupCommand = new SlashCommandBuilder()
       .addChannelOption((opt) =>
         opt.setName('canal').setDescription('Canal du guide admin').setRequired(true)
       )
+  )
+  .addSubcommand((sub) =>
+    sub
+      .setName('confessionnal')
+      .setDescription('Canal où les confessions anonymes sont postées par le bot')
+      .addChannelOption((opt) =>
+        opt.setName('canal').setDescription('Canal du confessionnal').setRequired(true)
+      )
+      .addRoleOption((opt) =>
+        opt.setName('fondateur').setDescription('Rôle autorisé à poster directement dans le canal').setRequired(true)
+      )
   );
 
 const resultatCommand = new SlashCommandBuilder()
@@ -260,6 +271,13 @@ const lookScrimCommand = new SlashCommandBuilder()
       )
   );
 
+const confessionCommand = new SlashCommandBuilder()
+  .setName('confession')
+  .setDescription('Envoyer un message anonyme dans le canal confessionnal')
+  .addStringOption((opt) =>
+    opt.setName('message').setDescription('Votre message anonyme').setRequired(true).setMaxLength(2000)
+  );
+
 async function handleSetup(interaction, client) {
   const sub = interaction.options.getSubcommand();
 
@@ -310,6 +328,16 @@ async function handleSetup(interaction, client) {
         {
           name: '🛠️ Canal admin',
           value: state.getAdminCommandesChannelId() ? `<#${state.getAdminCommandesChannelId()}>` : '❌ Non configuré',
+          inline: true,
+        },
+        {
+          name: '🤫 Canal confessionnal',
+          value: state.getConfessionalChannelId() ? `<#${state.getConfessionalChannelId()}>` : '❌ Non configuré',
+          inline: true,
+        },
+        {
+          name: '👑 Rôle fondateur',
+          value: state.getFounderRoleId() ? `<@&${state.getFounderRoleId()}>` : '❌ Non configuré',
           inline: true,
         }
       );
@@ -503,6 +531,25 @@ async function handleSetup(interaction, client) {
           .setColor(0xcc4400)
           .setDescription(`✅ Canal guide admin configuré sur <#${channel.id}>\nLes commandes admin y sont affichées et mises à jour automatiquement.`),
       ],
+    });
+  }
+
+  if (sub === 'confessionnal') {
+    const founderRole = interaction.options.getRole('fondateur');
+    state.setConfessionalChannelId(channel.id);
+    state.setFounderRoleId(founderRole.id);
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0x9b59b6)
+          .setDescription(
+            `✅ Canal confessionnal configuré sur <#${channel.id}>\n` +
+            `Rôle fondateur : <@&${founderRole.id}>\n\n` +
+            `Les messages envoyés par des membres (hors fondateurs et bot) seront automatiquement supprimés.\n` +
+            `Utilisez \`/confession\` pour envoyer un message anonyme via le bot.`
+          ),
+      ],
+      ephemeral: true,
     });
   }
 }
@@ -954,6 +1001,47 @@ async function handleAutocomplete(interaction) {
   return interaction.respond([]);
 }
 
+async function handleConfession(interaction) {
+  const confessionalChannelId = state.getConfessionalChannelId();
+  if (!confessionalChannelId) {
+    return interaction.reply({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(0xcc0000)
+          .setDescription('❌ Le canal confessionnal n\'est pas encore configuré. Demandez à un administrateur d\'utiliser `/setup confessionnal`.'),
+      ],
+      ephemeral: true,
+    });
+  }
+
+  const message = interaction.options.getString('message');
+  const channel = await interaction.client.channels.fetch(confessionalChannelId).catch(() => null);
+  if (!channel) {
+    return interaction.reply({
+      content: '❌ Impossible d\'accéder au canal confessionnal.',
+      ephemeral: true,
+    });
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x9b59b6)
+    .setDescription(message)
+    .setFooter({ text: '🤫 Message anonyme' })
+    .setTimestamp();
+
+  const sent = await channel.send({ embeds: [embed] });
+  await sent.startThread({ name: 'Discussion', autoArchiveDuration: 1440 }).catch(() => {});
+
+  return interaction.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x00cc66)
+        .setDescription(`✅ Votre confession a été envoyée anonymement dans <#${confessionalChannelId}>.`),
+    ],
+    ephemeral: true,
+  });
+}
+
 async function handleRefresh(interaction, client) {
   await interaction.deferReply({ ephemeral: true });
 
@@ -980,6 +1068,7 @@ module.exports = {
   setdateCommand,
   resultatCommand,
   correctResultCommand,
+  confessionCommand,
   handleSetup,
   handleRefresh,
   handleTicket,
@@ -988,5 +1077,6 @@ module.exports = {
   handleSetdate,
   handleResultat,
   handleCorrectResult,
+  handleConfession,
   handleAutocomplete,
 };

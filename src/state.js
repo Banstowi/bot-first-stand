@@ -22,6 +22,8 @@ const DEFAULT_STATE = {
   commandesMessageId: null,         // Message ID of the commandes embed
   adminCommandesChannelId: null,    // Channel showing admin commands guide
   adminCommandesMessageId: null,    // Message ID of the admin commandes embed
+  confessionalChannelId: null,      // Channel where confessions are posted anonymously
+  founderRoleId: null,              // Role ID allowed to post directly in confessional channel
   pendingAnnouncementDeletions: [], // [{ messageId, channelId, deleteAt }]
 };
 
@@ -299,6 +301,26 @@ function setAdminCommandesMessageId(id) {
   save(s);
 }
 
+function getConfessionalChannelId() {
+  return load().confessionalChannelId || null;
+}
+
+function setConfessionalChannelId(id) {
+  const s = load();
+  s.confessionalChannelId = id;
+  save(s);
+}
+
+function getFounderRoleId() {
+  return load().founderRoleId || null;
+}
+
+function setFounderRoleId(id) {
+  const s = load();
+  s.founderRoleId = id;
+  save(s);
+}
+
 // ─── Announcement deletions ───────────────────────────────────────────────────
 
 function addPendingAnnouncementDeletion(messageId, channelId, deleteAt) {
@@ -368,6 +390,11 @@ module.exports = {
   setAdminCommandesChannelId,
   getAdminCommandesMessageId,
   setAdminCommandesMessageId,
+  // Confessional
+  getConfessionalChannelId,
+  setConfessionalChannelId,
+  getFounderRoleId,
+  setFounderRoleId,
   // Deletions
   addPendingAnnouncementDeletion,
   removePendingAnnouncementDeletion,

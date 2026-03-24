@@ -10,10 +10,11 @@ const { refreshGuide } = require('./guideManager');
 const { refreshCommandes } = require('./commandesManager');
 const {
   setupCommand, refreshCommand, ticketCommand, lookScrimCommand,
-  capitaineCommand, setdateCommand, resultatCommand, correctResultCommand,
+  capitaineCommand, setdateCommand, resultatCommand, correctResultCommand, confessionCommand,
   handleSetup, handleRefresh, handleTicket, handleLookScrim,
-  handleCapitaine, handleSetdate, handleResultat, handleCorrectResult, handleAutocomplete,
+  handleCapitaine, handleSetdate, handleResultat, handleCorrectResult, handleConfession, handleAutocomplete,
 } = require('./commands');
+const state = require('./state');
 const { createTicket, closeTicket, handleTicketOpen } = require('./ticketManager');
 const { handleReglementNav } = require('./reglementManager');
 const { handleReactionAdd } = require('./sideReactionManager');
@@ -38,6 +39,7 @@ async function registerCommands(clientId) {
     setdateCommand.toJSON(),
     resultatCommand.toJSON(),
     correctResultCommand.toJSON(),
+    confessionCommand.toJSON(),
   ];
 
   try {
@@ -113,6 +115,7 @@ client.on('interactionCreate', async (interaction) => {
       interaction.commandName === 'setdate'    ? handleSetdate(interaction, client) :
       interaction.commandName === 'resultat'        ? handleResultat(interaction, client) :
       interaction.commandName === 'correct-result'  ? handleCorrectResult(interaction, client) :
+      interaction.commandName === 'confession'      ? handleConfession(interaction) :
       null;
   } else if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_open') {
     handler = createTicket(interaction, interaction.values[0]);
@@ -134,6 +137,22 @@ client.on('interactionCreate', async (interaction) => {
       reply.catch(() => {});
     });
   }
+});
+
+client.on('messageCreate', async (message) => {
+  // Ignore bot messages and thread messages
+  if (message.author.bot) return;
+  if (message.channel.isThread()) return;
+
+  const confessionalChannelId = state.getConfessionalChannelId();
+  if (!confessionalChannelId || message.channel.id !== confessionalChannelId) return;
+
+  const founderRoleId = state.getFounderRoleId();
+  if (founderRoleId && message.member && message.member.roles.cache.has(founderRoleId)) return;
+
+  await message.delete().catch((err) => {
+    console.error('[Bot] Erreur suppression message confessionnal:', err);
+  });
 });
 
 client.on('messageReactionAdd', async (reaction, user) => {

@@ -1029,8 +1029,7 @@ async function handleConfession(interaction) {
     .setFooter({ text: '🤫 Message anonyme' })
     .setTimestamp();
 
-  const sent = await channel.send({ embeds: [embed] });
-  await sent.startThread({ name: 'Discussion', autoArchiveDuration: 1440 }).catch(() => {});
+  await channel.send({ embeds: [embed] });
 
   return interaction.reply({
     embeds: [

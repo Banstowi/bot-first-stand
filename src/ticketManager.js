@@ -60,6 +60,8 @@ async function createTicket(interaction, type) {
   const ticketType = TICKET_TYPES[type];
   if (!ticketType) return;
 
+  await interaction.deferUpdate();
+
   const categoryId = state.getTicketCategoryId();
   const guild = interaction.guild;
   const user = interaction.user;
@@ -71,7 +73,7 @@ async function createTicket(interaction, type) {
     (ch) => ch.name === channelName && (!categoryId || ch.parentId === categoryId)
   );
   if (existing) {
-    return interaction.update({
+    return interaction.editReply({
       content: `❌ Vous avez déjà un ticket ouvert : <#${existing.id}>`,
       embeds: [],
       components: [],
@@ -124,7 +126,7 @@ async function createTicket(interaction, type) {
 
   await channel.send({ content: `<@${user.id}>`, embeds: [embed], components: [closeRow] });
 
-  return interaction.update({
+  return interaction.editReply({
     content: `✅ Votre ticket a été créé : <#${channel.id}>`,
     embeds: [],
     components: [],

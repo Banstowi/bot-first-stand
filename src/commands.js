@@ -23,6 +23,7 @@ const { handleTicketOpen, postTicketPanel } = require('./ticketManager');
 const { postReglement } = require('./reglementManager');
 const { postResult, postCorrectedResult } = require('./resultManager');
 const { refreshCommandes } = require('./commandesManager');
+const { sendScoreToWebsite } = require('./websiteApi');
 
 const setupCommand = new SlashCommandBuilder()
   .setName('setup')
@@ -883,6 +884,9 @@ async function handleResultat(interaction, client) {
   // Post result card in results channel
   await postResult(client, updatedMatch);
 
+  // Send score to website API
+  await sendScoreToWebsite(updatedMatch);
+
   // Refresh calendar + team channels (match now COMPLETED → disappears)
   await Promise.all([refreshCalendar(client), refreshAllTeamChannels(client)]);
 
@@ -946,6 +950,9 @@ async function handleCorrectResult(interaction, client) {
   const updatedMatch = await getMatchById(matchId);
 
   await postCorrectedResult(client, updatedMatch);
+
+  // Send corrected score to website API
+  await sendScoreToWebsite(updatedMatch);
 
   const loser = winner === match.team1_name ? match.team2_name : match.team1_name;
   return interaction.editReply({

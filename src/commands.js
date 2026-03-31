@@ -653,6 +653,19 @@ async function handleCapitaine(interaction) {
   }
 }
 
+function getParisUTCOffsetMinutes(date) {
+  // Returns the Europe/Paris UTC offset in minutes at the given UTC Date.
+  const opts = {
+    timeZone: 'Europe/Paris',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  };
+  const parts = new Intl.DateTimeFormat('fr-CA', opts).formatToParts(date);
+  const get = (type) => parseInt(parts.find(p => p.type === type).value);
+  const parisDate = new Date(Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')));
+  return (parisDate - date) / 60000;
+}
+
 function parseMatchDateTime(dateStr, heureStr) {
   const dateParts = dateStr.trim().split('/');
   if (dateParts.length < 2) return null;
@@ -665,7 +678,26 @@ function parseMatchDateTime(dateStr, heureStr) {
 
   if (isNaN(parseInt(day)) || isNaN(parseInt(month)) || isNaN(parseInt(h))) return null;
 
-  return `${year}-${month}-${day} ${h.padStart(2, '0')}:${m.padStart(2, '0')}:00`;
+  // Determine Europe/Paris UTC offset at noon on the target date (noon avoids DST edge cases).
+  // mysql2 is configured with timezone '+01:00', so it always subtracts 60 min when reading a
+  // DATETIME string back into a JS Date.  To get the correct UTC round-trip we must store:
+  //   stored = paris_input_time - (paris_offset_minutes - 60) minutes
+  // Winter (CET, +60 min): adjustment = 0  → stored value unchanged (backward-compatible).
+  // Summer (CEST, +120 min): adjustment = 60 → stored is paris_time - 1 h.
+  const probe = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
+  const parisOffsetMin = getParisUTCOffsetMinutes(probe);
+  const adjustMin = parisOffsetMin - 60;
+
+  const inputMs = Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), parseInt(h), parseInt(m), 0);
+  const storedDate = new Date(inputMs - adjustMin * 60000);
+
+  const sy  = storedDate.getUTCFullYear();
+  const sm  = String(storedDate.getUTCMonth() + 1).padStart(2, '0');
+  const sd  = String(storedDate.getUTCDate()).padStart(2, '0');
+  const sh  = String(storedDate.getUTCHours()).padStart(2, '0');
+  const smm = String(storedDate.getUTCMinutes()).padStart(2, '0');
+
+  return `${sy}-${sm}-${sd} ${sh}:${smm}:00`;
 }
 
 async function handleSetdate(interaction, client) {

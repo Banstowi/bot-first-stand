@@ -130,18 +130,18 @@ async function getUnassignedTeams() {
 async function getMatchesByTeamId(teamId) {
   const [rows] = await pool.execute(
     `SELECT dm.*,
-            cap_opp.discord_user_id AS opposing_captain_id
+            (SELECT cap.discord_user_id
+             FROM teams t_opp
+             JOIN capitaines_discord cap ON cap.team_id = t_opp.id
+             WHERE (t_opp.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR
+                    t_opp.name COLLATE utf8mb4_unicode_ci = dm.team2_name)
+               AND t_opp.id != t.id
+             LIMIT 1) AS opposing_captain_id
      FROM discord_matches dm
      JOIN teams t ON (
        t.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR
        t.name COLLATE utf8mb4_unicode_ci = dm.team2_name
      )
-     LEFT JOIN teams t_opp ON (
-       (t_opp.name COLLATE utf8mb4_unicode_ci = dm.team1_name OR
-        t_opp.name COLLATE utf8mb4_unicode_ci = dm.team2_name)
-       AND t_opp.id != t.id
-     )
-     LEFT JOIN capitaines_discord cap_opp ON cap_opp.team_id = t_opp.id
      WHERE t.id = ? AND dm.status = 'PENDING'
      ORDER BY (dm.match_date IS NULL) ASC, dm.match_date ASC, dm.id ASC`,
     [teamId]

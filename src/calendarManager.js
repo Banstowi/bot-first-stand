@@ -296,7 +296,6 @@ async function refreshTeamChannel(client, teamId, channelId) {
       getAllMsgs: () => state.getAllTeamMessageIds(teamId),
     }, `TeamChannel#${teamId}`, {
       imageOnly: true,
-      limit: 3,
       onNewCard: async (msg, match) => {
         // Only add reactions if the side hasn't been picked yet
         if (!match.side_picker) {
